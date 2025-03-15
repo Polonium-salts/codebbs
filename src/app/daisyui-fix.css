@@ -1,0 +1,8 @@
+/* 修复 DaisyUI 4.0.1 中的 CSS 语法错误 */
+select.select-multiple,
+select.select[multiple],
+select.select[size],
+select.select:not([size="1"]) {
+  background-image: none;
+  padding-right: 1rem;
+} 
