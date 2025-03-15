@@ -2,13 +2,21 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { formatDistanceToNow } from "date-fns";
+import FollowButtonWrapper from "./FollowButtonWrapper";
 
 async function getUser(id) {
   try {
     const user = await prisma.user.findUnique({
       where: { id },
       include: {
-        _count: { select: { posts: true, comments: true } }
+        _count: { 
+          select: { 
+            posts: true, 
+            comments: true,
+            followers: true,
+            following: true
+          } 
+        }
       }
     });
     return user;
@@ -20,29 +28,58 @@ async function getUser(id) {
 
 async function getUserPosts(userId) {
   try {
-    const posts = await prisma.post.findMany({
+    return await prisma.post.findMany({
       where: { 
         authorId: userId,
-        published: true 
-      },
-      include: {
-        category: true,
-        _count: { select: { comments: true } }
+        published: true
       },
       orderBy: { createdAt: "desc" },
-      take: 10
+      take: 5,
+      include: {
+        category: { select: { name: true } },
+        _count: {
+          select: { comments: true, likes: true }
+        }
+      }
     });
-    return posts;
   } catch (error) {
     console.error("Error fetching user posts:", error);
     return [];
   }
 }
 
+// 获取用户获得的点赞总数
+async function getUserLikes(userId) {
+  try {
+    return await prisma.like.count({
+      where: {
+        OR: [
+          // 用户文章获得的点赞
+          {
+            post: {
+              authorId: userId,
+            },
+          },
+          // 用户评论获得的点赞
+          {
+            comment: {
+              authorId: userId,
+            },
+          },
+        ],
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching user likes:", error);
+    return 0;
+  }
+}
+
 export default async function UserProfilePage({ params }) {
-  const [user, posts] = await Promise.all([
+  const [user, posts, totalLikes] = await Promise.all([
     getUser(params.id),
-    getUserPosts(params.id)
+    getUserPosts(params.id),
+    getUserLikes(params.id)
   ]);
 
   if (!user) {
@@ -75,10 +112,20 @@ export default async function UserProfilePage({ params }) {
           </div>
           
           <div className="flex-1">
-            <h1 className="text-3xl font-bold mb-2 text-center sm:text-left">{user.name}</h1>
-            <p className="text-muted-foreground mb-4 text-center sm:text-left">{user.email}</p>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between mb-4">
+              <h1 className="text-3xl font-bold text-center sm:text-left">{user.name}</h1>
+              <FollowButtonWrapper userId={user.id} />
+            </div>
             
-            <div className="flex flex-wrap justify-center sm:justify-start gap-4">
+            <p className="text-muted-foreground mb-6 text-center sm:text-left">{user.email}</p>
+            
+            {user.bio && (
+              <div className="mb-6 p-4 bg-accent/5 rounded-lg border border-border/40">
+                <p className="text-sm">{user.bio}</p>
+              </div>
+            )}
+            
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
               <div className="bg-accent/20 rounded-lg px-4 py-2 text-center">
                 <div className="text-2xl font-bold">{user._count.posts}</div>
                 <div className="text-xs text-muted-foreground">文章</div>
@@ -90,17 +137,25 @@ export default async function UserProfilePage({ params }) {
               </div>
               
               <div className="bg-accent/20 rounded-lg px-4 py-2 text-center">
-                <div className="text-2xl font-bold">
-                  {new Date(user.createdAt).toLocaleDateString()}
-                </div>
-                <div className="text-xs text-muted-foreground">加入日期</div>
+                <div className="text-2xl font-bold">{user._count.followers}</div>
+                <div className="text-xs text-muted-foreground">粉丝</div>
+              </div>
+              
+              <div className="bg-accent/20 rounded-lg px-4 py-2 text-center">
+                <div className="text-2xl font-bold">{user._count.following}</div>
+                <div className="text-xs text-muted-foreground">关注</div>
+              </div>
+              
+              <div className="bg-accent/20 rounded-lg px-4 py-2 text-center">
+                <div className="text-2xl font-bold">{totalLikes}</div>
+                <div className="text-xs text-muted-foreground">获赞</div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="mb-6">
+      <div>
         <h2 className="text-2xl font-bold mb-4">最近发布的文章</h2>
         {posts.length === 0 ? (
           <div className="text-center py-8 border border-border/50 rounded-lg bg-card">
@@ -116,6 +171,7 @@ export default async function UserProfilePage({ params }) {
                   </h3>
                 </Link>
                 <p className="text-muted-foreground mb-4 line-clamp-2">{post.content}</p>
+                
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">
@@ -131,8 +187,8 @@ export default async function UserProfilePage({ params }) {
                       {post._count.comments}
                     </div>
                     <div className="flex items-center gap-1">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-eye"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
-                      {post.views}
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-heart"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" /></svg>
+                      {post._count.likes}
                     </div>
                   </div>
                 </div>

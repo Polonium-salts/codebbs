@@ -8,14 +8,44 @@ import AuthProvider from "@/components/AuthProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Sidebar } from "@/components/Sidebar";
 import Navbar from "@/components/Navbar";
+import { InstallPWA } from "@/components/InstallPWA";
 
 export default function RootLayout({ children, session }) {
+  useEffect(() => {
+    // 注册service worker
+    if (typeof window !== 'undefined') {
+      const script = document.createElement('script');
+      script.src = '/sw-register.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  }, []);
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+        
+        {/* PWA 元数据 */}
+        <meta name="application-name" content="Forum App" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="Forum" />
+        <meta name="description" content="一个现代化的论坛应用" />
+        <meta name="format-detection" content="telephone=no" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="theme-color" content="#000000" />
+        
+        {/* PWA 图标 */}
+        <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
+        <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192x192.png" />
+        <link rel="apple-touch-icon" sizes="384x384" href="/icons/icon-384x384.png" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-72x72.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-72x72.png" />
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="shortcut icon" href="/icons/icon-72x72.png" />
       </head>
       <body className="min-h-screen bg-background font-sans antialiased selection:bg-primary/10">
         <ThemeProvider defaultTheme="dark" enableSystem={false}>
@@ -69,6 +99,9 @@ export default function RootLayout({ children, session }) {
                 </footer>
               </div>
             </div>
+            
+            {/* PWA安装按钮 */}
+            <InstallPWA />
           </AuthProvider>
         </ThemeProvider>
       </body>

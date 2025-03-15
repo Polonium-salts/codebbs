@@ -1,6 +1,8 @@
 import Link from "next/link";
 import prisma from "@/lib/prisma";
 import { formatDistanceToNow } from "date-fns";
+import { getServerSession } from "next-auth";
+import { authOptions } from "./api/auth/[...nextauth]/route";
 
 async function getLatestPosts() {
   try {
@@ -34,6 +36,7 @@ async function getCategories() {
 }
 
 export default async function Home() {
+  const session = await getServerSession(authOptions);
   const [latestPosts, categories] = await Promise.all([
     getLatestPosts(),
     getCategories()
@@ -133,10 +136,21 @@ export default async function Home() {
                 <h3 className="font-bold text-lg">社区公告</h3>
               </div>
               <div className="p-6">
-                <p className="text-muted-foreground mb-4">加入我们的社区，探索和分享知识。</p>
-                <Link href="/register" className="w-full inline-flex justify-center items-center px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
-                  立即加入
-                </Link>
+                {session ? (
+                  <>
+                    <p className="text-muted-foreground mb-4">欢迎回到社区！查看新的话题和参与讨论。</p>
+                    <Link href="/posts/create" className="w-full inline-flex justify-center items-center px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+                      发布新主题
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-muted-foreground mb-4">加入我们的社区，探索和分享知识。</p>
+                    <Link href="/register" className="w-full inline-flex justify-center items-center px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+                      立即加入
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
 

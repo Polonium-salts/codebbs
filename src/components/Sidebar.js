@@ -9,8 +9,8 @@ const navigation = [
   { name: "首页", href: "/", icon: HomeIcon },
   { name: "文章", href: "/posts", icon: DocumentIcon },
   { name: "分类", href: "/categories", icon: FolderIcon },
-  { name: "标签", href: "/tags", icon: TagIcon },
-  { name: "关于", href: "/about", icon: UserIcon },
+  { name: "好友", href: "/friends", icon: UsersIcon },
+  { name: "个人主页", href: "/profile", icon: UserIcon },
 ];
 
 export function Sidebar() {
@@ -96,18 +96,18 @@ export function Sidebar() {
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 mt-4 text-center">
-                  <div className="bg-background/60 rounded-md p-2">
+                  <Link href="/friends" className="bg-background/60 rounded-md p-2 hover:bg-primary/10 transition-colors">
                     <div className="font-semibold">
                       {loading ? "..." : userStats.following}
                     </div>
                     <div className="text-xs text-muted-foreground">关注</div>
-                  </div>
-                  <div className="bg-background/60 rounded-md p-2">
+                  </Link>
+                  <Link href="/friends" className="bg-background/60 rounded-md p-2 hover:bg-primary/10 transition-colors">
                     <div className="font-semibold">
                       {loading ? "..." : userStats.followers}
                     </div>
                     <div className="text-xs text-muted-foreground">粉丝</div>
-                  </div>
+                  </Link>
                   <div className="bg-background/60 rounded-md p-2">
                     <div className="font-semibold">
                       {loading ? "..." : userStats.likes}
@@ -239,7 +239,7 @@ function FolderIcon(props) {
   );
 }
 
-function TagIcon(props) {
+function UsersIcon(props) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -251,8 +251,10 @@ function TagIcon(props) {
       strokeLinejoin="round"
       {...props}
     >
-      <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z" />
-      <path d="M7 7h.01" />
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
   );
 }
