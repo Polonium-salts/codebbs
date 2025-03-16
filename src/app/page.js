@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { formatDistanceToNow } from "date-fns";
 import { getServerSession } from "next-auth";
 import { authOptions } from "./api/auth/[...nextauth]/route";
+import WelcomeSection from "@/components/WelcomeSection";
 
 async function getLatestPosts() {
   try {
@@ -44,22 +45,8 @@ export default async function Home() {
 
   return (
     <div className="space-y-8">
-      {/* Hero Section */}
-      <div className="w-full relative overflow-hidden rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)] bg-[size:24px_24px]"></div>
-        <div className="relative z-10 px-6 py-12 md:py-16 lg:py-20 max-w-5xl mx-auto">
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4">欢迎来到我们的论坛</h1>
-          <p className="text-lg md:text-xl opacity-90 mb-8 max-w-2xl">分享你的想法，探索新的知识，和社区一起成长。</p>
-          <div className="flex flex-wrap gap-4">
-            <Link href="/posts/create" className="px-6 py-3 bg-white text-blue-600 font-medium rounded-lg shadow-lg hover:shadow-xl transition-all">
-              创建新讨论
-            </Link>
-            <Link href="/categories" className="px-6 py-3 bg-blue-700 bg-opacity-30 text-white border border-white border-opacity-20 rounded-lg hover:bg-opacity-40 transition-all">
-              浏览分类
-            </Link>
-          </div>
-        </div>
-      </div>
+      {/* Welcome Section - now using client component */}
+      <WelcomeSection />
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
         {/* Main Content - Latest Discussions */}

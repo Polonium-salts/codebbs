@@ -42,29 +42,29 @@ export const authOptions = {
           name: user.name,
           email: user.email,
           image: user.image,
+          role: user.role || 'USER',
         };
       },
     }),
   ],
   callbacks: {
-    session: ({ session, token }) => {
-      return {
-        ...session,
-        user: {
-          ...session.user,
-          id: token.id,
-        },
-      };
-    },
-    jwt: ({ token, user }) => {
+    async jwt({ token, user }) {
       if (user) {
-        return {
-          ...token,
-          id: user.id,
-        };
+        token.id = user.id;
+        token.role = user.role;
       }
       return token;
     },
+    async session({ session, token }) {
+      if (token) {
+        session.user.id = token.id;
+        session.user.role = token.role;
+        
+        // 添加调试日志
+        console.log("Session user role:", session.user.role);
+      }
+      return session;
+    }
   },
   pages: {
     signIn: '/login',

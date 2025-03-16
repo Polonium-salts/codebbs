@@ -20,20 +20,6 @@ async function main() {
 
     console.log('Admin user created:', admin.email);
 
-    // Create test user
-    const userPassword = await bcrypt.hash('user123', 10);
-    const user = await prisma.user.upsert({
-      where: { email: 'user@example.com' },
-      update: {},
-      create: {
-        name: 'Test User',
-        email: 'user@example.com',
-        password: userPassword,
-        image: 'https://ui-avatars.com/api/?name=Test+User',
-      },
-    });
-
-    console.log('Test user created:', user.email);
 
     // Create categories
     const categories = [

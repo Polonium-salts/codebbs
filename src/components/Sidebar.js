@@ -13,6 +13,10 @@ const navigation = [
   { name: "个人主页", href: "/profile", icon: UserIcon },
 ];
 
+const adminNavigation = [
+  { name: "管理后台", href: "/admin/dashboard", icon: LayoutDashboardIcon },
+];
+
 export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
@@ -142,6 +146,35 @@ export function Sidebar() {
                 ))}
               </ul>
             </li>
+            
+            {/* 管理员菜单 */}
+            {session?.user?.role === 'ADMIN' && (
+              <li>
+                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground pl-2 mb-2">
+                  管理选项
+                </div>
+                <ul role="list" className="-mx-2 space-y-1">
+                  {adminNavigation.map((item) => (
+                    <li key={item.name}>
+                      <Link
+                        href={item.href}
+                        className={`
+                          group flex gap-x-3 rounded-md p-2 text-sm font-semibold
+                          ${pathname === item.href
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                          }
+                        `}
+                      >
+                        <item.icon className="h-5 w-5 shrink-0 relative z-10" aria-hidden="true" />
+                        <span className="relative z-10">{item.name}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            )}
+            
             <li className="mt-auto">
               {session ? (
                 <div className="space-y-4">
@@ -331,6 +364,62 @@ function UserPlusIcon(props) {
       <circle cx="8.5" cy="7" r="4" />
       <line x1="20" y1="8" x2="20" y2="14" />
       <line x1="23" y1="11" x2="17" y2="11" />
+    </svg>
+  );
+}
+
+function LayoutDashboardIcon(props) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <rect width="7" height="9" x="3" y="3" rx="1" />
+      <rect width="7" height="5" x="14" y="3" rx="1" />
+      <rect width="7" height="9" x="14" y="12" rx="1" />
+      <rect width="7" height="5" x="3" y="16" rx="1" />
+    </svg>
+  );
+}
+
+function MessageSquareIcon(props) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+
+function ImageIcon(props) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+      <circle cx="8.5" cy="8.5" r="1.5" />
+      <polyline points="21 15 16 10 5 21" />
     </svg>
   );
 } 
