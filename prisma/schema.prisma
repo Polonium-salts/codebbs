@@ -21,6 +21,7 @@ model User {
   password      String
   image         String?
   bio           String?
+  role          String    @default("USER")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   posts         Post[]
@@ -99,4 +100,27 @@ model Bookmark {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   @@unique([userId, postId])
+}
+
+model Setting {
+  key   String @id
+  value String
+  type  String
+}
+
+model Plugin {
+  id           String    @id @default(cuid())
+  name         String    @unique
+  displayName  String
+  description  String
+  version      String
+  author       String
+  homepage     String?
+  repository   String?
+  main         String    // 主入口文件路径
+  enabled      Boolean   @default(false)
+  config       String?   // JSON格式的配置
+  hooks        String?   // JSON格式的挂载点
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }

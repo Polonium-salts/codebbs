@@ -15,7 +15,9 @@ import {
   ChevronRight,
   ChevronLeft,
   Menu,
-  LogOut
+  LogOut,
+  Github,
+  Puzzle
 } from 'lucide-react';
 
 // 管理员菜单项
@@ -26,6 +28,8 @@ const adminMenuItems = [
   { name: '用户管理', href: '/admin/users', icon: Users },
   { name: '分类管理', href: '/admin/categories', icon: Tag },
   { name: '数据统计', href: '/admin/stats', icon: BarChart },
+  { name: '插件管理', href: '/admin/plugins', icon: Puzzle },
+  { name: 'GitHub同步', href: '/admin/github-sync', icon: Github },
   { name: '系统设置', href: '/admin/settings', icon: Settings }
 ];
 

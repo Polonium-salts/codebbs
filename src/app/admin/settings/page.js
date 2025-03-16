@@ -16,7 +16,8 @@ import {
   BellRing,
   Shield,
   Sliders,
-  Check
+  Check,
+  Github
 } from 'lucide-react';
 
 // 设置项组件
@@ -82,13 +83,17 @@ export default function SettingsPage() {
     postsPerPage: 10,
     cacheTimeout: 3600,
     emailNotifications: true,
-    maintenanceMode: false
+    maintenanceMode: false,
+    githubRepo: '',
+    githubBranch: 'main'
   });
   
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState(null);
   
   // 获取系统设置
   const fetchSettings = async () => {
@@ -168,6 +173,49 @@ export default function SettingsPage() {
       setError('保存系统设置时发生错误');
     } finally {
       setIsSaving(false);
+    }
+  };
+  
+  // 从GitHub同步代码
+  const syncFromGithub = async () => {
+    if (!formData.githubRepo) {
+      setError('请先设置GitHub仓库地址');
+      return;
+    }
+
+    try {
+      setIsSyncing(true);
+      setSyncMessage(null);
+      setError(null);
+      
+      const response = await fetch('/api/admin/github-sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          repo: formData.githubRepo,
+          branch: formData.githubBranch || 'main'
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setSyncMessage(data.message || '同步成功');
+        
+        // 3秒后隐藏成功消息
+        setTimeout(() => {
+          setSyncMessage(null);
+        }, 5000);
+      } else {
+        setError(data.message || '从GitHub同步代码失败');
+      }
+    } catch (error) {
+      console.error('从GitHub同步代码出错:', error);
+      setError('从GitHub同步代码时发生错误');
+    } finally {
+      setIsSyncing(false);
     }
   };
   
@@ -469,6 +517,68 @@ export default function SettingsPage() {
                 checked={formData.maintenanceMode} 
                 onChange={(value) => handleToggleChange('maintenanceMode', value)}
               />
+            </SettingItem>
+          </SettingGroup>
+          
+          {/* GitHub代码同步 */}
+          <SettingGroup icon={Github} title="GitHub代码同步">
+            <SettingItem 
+              title="GitHub仓库" 
+              description="要同步的GitHub仓库地址，格式为 用户名/仓库名"
+            >
+              <input
+                type="text"
+                name="githubRepo"
+                value={formData.githubRepo}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-border rounded-md bg-background"
+                placeholder="例如: username/repo"
+              />
+            </SettingItem>
+            
+            <SettingItem 
+              title="分支名称" 
+              description="要同步的代码分支，默认为main"
+            >
+              <input
+                type="text"
+                name="githubBranch"
+                value={formData.githubBranch}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-border rounded-md bg-background"
+                placeholder="main"
+              />
+            </SettingItem>
+            
+            <SettingItem 
+              title="代码同步" 
+              description="从GitHub仓库拉取最新代码更新网站功能，不影响数据库"
+            >
+              <div className="flex items-center gap-4">
+                <button
+                  type="button"
+                  onClick={syncFromGithub}
+                  className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors flex items-center gap-2"
+                  disabled={isSyncing || !formData.githubRepo}
+                >
+                  {isSyncing ? (
+                    <Loader2 className="animate-spin" size={16} />
+                  ) : (
+                    <Github size={16} />
+                  )}
+                  <span>{isSyncing ? '同步中...' : '从GitHub同步代码'}</span>
+                </button>
+                
+                {syncMessage && (
+                  <span className="text-green-500 flex items-center gap-1">
+                    <Check size={16} />
+                    {syncMessage}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                注意：此操作只更新网站功能代码，不会改变数据库内容。请确保代码兼容性。
+              </p>
             </SettingItem>
           </SettingGroup>
         </form>
