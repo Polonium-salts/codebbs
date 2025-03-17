@@ -1,81 +1,385 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import {
+  Github,
+  Gitlab,
+  GitBranch,
+  FileText,
+  Folder,
+  Loader2,
+  ChevronRight,
+  ChevronDown,
+  Search,
+  AlertCircle,
+  Check
+} from 'lucide-react';
+
+// 支持的Git平台
+const GIT_PLATFORMS = {
+  github: {
+    name: 'GitHub',
+    icon: Github,
+    apiBase: 'https://api.github.com',
+    defaultBranch: 'main'
+  },
+  gitee: {
+    name: 'Gitee',
+    icon: Gitlab,
+    apiBase: 'https://gitee.com/api/v5',
+    defaultBranch: 'master'
+  },
+  gitlab: {
+    name: 'GitLab',
+    icon: Gitlab,
+    apiBase: 'https://gitlab.com/api/v4',
+    defaultBranch: 'main'
+  },
+  gitea: {
+    name: 'Gitea',
+    icon: Gitlab,
+    apiBase: 'https://gitea.com/api/v1',
+    defaultBranch: 'main'
+  }
+};
+
+// 文件图标组件
+const FileIcon = ({ type, name }) => {
+  if (type === 'dir') {
+    return <Folder className="h-4 w-4 text-blue-500" />;
+  }
+  
+  const ext = name.split('.').pop().toLowerCase();
+  const codeExts = ['js', 'jsx', 'ts', 'tsx', 'py', 'java', 'cpp', 'c', 'h', 'cs', 'php', 'rb', 'go', 'rs', 'swift', 'kt', 'scala', 'r', 'm', 'mm'];
+  
+  return (
+    <FileText className={`h-4 w-4 ${codeExts.includes(ext) ? 'text-green-500' : 'text-gray-500'}`} />
+  );
+};
+
+// 文件树项组件
+const FileTreeItem = ({ item, level = 0, onSelect, selectedPath }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [contents, setContents] = useState([]);
+  const [loading, setLoading] = useState(false);
+  
+  const handleClick = async () => {
+    if (item.type === 'dir') {
+      setIsOpen(!isOpen);
+      if (!isOpen && contents.length === 0) {
+        setLoading(true);
+        try {
+          const response = await fetch(`/api/git/contents?platform=${item.platform}&owner=${item.owner}&repo=${item.repo}&path=${item.path}&branch=${item.branch}`);
+          if (!response.ok) throw new Error('Failed to fetch contents');
+          const data = await response.json();
+          setContents(data);
+        } catch (error) {
+          console.error('Error fetching contents:', error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    } else {
+      onSelect(item);
+    }
+  };
+  
+  return (
+    <div>
+      <div
+        className={`flex items-center gap-1 px-2 py-1 rounded cursor-pointer hover:bg-accent/50 ${
+          selectedPath === item.path ? 'bg-accent' : ''
+        }`}
+        style={{ paddingLeft: `${level * 1.5 + 0.5}rem` }}
+        onClick={handleClick}
+      >
+        {item.type === 'dir' && (
+          loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />
+          )
+        )}
+        <FileIcon type={item.type} name={item.name} />
+        <span className="text-sm truncate">{item.name}</span>
+      </div>
+      {isOpen && contents.length > 0 && (
+        <div>
+          {contents.map((content) => (
+            <FileTreeItem
+              key={content.path}
+              item={{
+                ...content,
+                platform: item.platform,
+                owner: item.owner,
+                repo: item.repo,
+                branch: item.branch
+              }}
+              level={level + 1}
+              onSelect={onSelect}
+              selectedPath={selectedPath}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function GitRepoTab() {
+  const [platform, setPlatform] = useState('github');
   const [repoUrl, setRepoUrl] = useState('');
-  const [filePath, setFilePath] = useState('');
+  const [owner, setOwner] = useState('');
+  const [repo, setRepo] = useState('');
+  const [branch, setBranch] = useState('');
+  const [branches, setBranches] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [contents, setContents] = useState([]);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [fileContent, setFileContent] = useState('');
   const [showLineNumbers, setShowLineNumbers] = useState(true);
   const [highlightSyntax, setHighlightSyntax] = useState(true);
-
-  const handleFetchRepo = () => {
-    // 实现获取仓库功能
-    console.log("获取仓库:", repoUrl);
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // 解析仓库URL
+  const parseRepoUrl = (url) => {
+    try {
+      const urlObj = new URL(url);
+      const pathParts = urlObj.pathname.split('/').filter(Boolean);
+      
+      if (pathParts.length >= 2) {
+        return {
+          owner: pathParts[0],
+          repo: pathParts[1]
+        };
+      }
+      throw new Error('Invalid repository URL');
+    } catch (error) {
+      throw new Error('Invalid repository URL');
+    }
   };
-
-  const handleInsertCode = () => {
-    // 实现插入代码功能
-    console.log("插入代码:", filePath);
+  
+  // 获取仓库信息
+  const fetchRepoInfo = async () => {
+    if (!repoUrl) {
+      setError('请输入仓库URL');
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const { owner, repo } = parseRepoUrl(repoUrl);
+      setOwner(owner);
+      setRepo(repo);
+      
+      // 获取仓库信息和分支列表
+      const response = await fetch(`/api/git/repo?platform=${platform}&owner=${owner}&repo=${repo}`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || '获取仓库信息失败');
+      }
+      
+      const data = await response.json();
+      setBranches(data.branches || []);
+      setBranch(data.default_branch || GIT_PLATFORMS[platform].defaultBranch);
+      
+      // 获取根目录内容
+      const contentsResponse = await fetch(
+        `/api/git/contents?platform=${platform}&owner=${owner}&repo=${repo}&branch=${branch}`
+      );
+      if (!contentsResponse.ok) {
+        throw new Error('获取仓库内容失败');
+      }
+      
+      const contentsData = await contentsResponse.json();
+      setContents(contentsData);
+    } catch (err) {
+      console.error('获取仓库信息出错:', err);
+      setError(err.message || '获取仓库信息失败');
+    } finally {
+      setLoading(false);
+    }
   };
-
+  
+  // 获取文件内容
+  const fetchFileContent = async (file) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(
+        `/api/git/contents?platform=${platform}&owner=${owner}&repo=${repo}&path=${file.path}&branch=${branch}`
+      );
+      if (!response.ok) {
+        throw new Error('获取文件内容失败');
+      }
+      
+      const data = await response.json();
+      setFileContent(data.content);
+      setSelectedFile(file);
+    } catch (err) {
+      console.error('获取文件内容出错:', err);
+      setError(err.message || '获取文件内容失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // 插入代码到编辑器
+  const insertCode = () => {
+    if (!selectedFile || !fileContent) {
+      setError('请先选择要插入的文件');
+      return;
+    }
+    
+    // 这里需要实现与编辑器的集成
+    // 可以通过自定义事件或回调函数将代码插入到编辑器中
+    const code = `\`\`\`${selectedFile.name.split('.').pop()}\n${fileContent}\n\`\`\``;
+    window.dispatchEvent(new CustomEvent('insertCode', { detail: code }));
+  };
+  
+  // 过滤文件列表
+  const filteredContents = contents.filter(item =>
+    item.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  
   return (
     <div className="bg-card border border-border/60 rounded-lg overflow-hidden">
       <div className="flex items-center justify-between border-b border-border/60 px-4 py-3 bg-gradient-to-r from-primary/5 to-blue-500/5">
         <div className="flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
-            <path d="M9 18c-4.51 2-5-2-7-2" />
-          </svg>
+          <Github className="h-5 w-5 text-primary" />
           <h2 className="font-medium">Git仓库代码</h2>
         </div>
         <div className="text-xs text-muted-foreground">在帖子中引用代码</div>
       </div>
 
       <div className="p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1">
-            <label htmlFor="repo-url" className="block text-xs font-medium mb-1">仓库URL</label>
-            <div className="flex">
-              <input
-                type="text"
-                id="repo-url"
-                placeholder="https://github.com/username/repo"
-                className="flex-1 px-3 py-2 text-sm rounded-l-md border border-border focus:outline-none focus:ring-1 focus:ring-primary bg-background"
-                value={repoUrl}
-                onChange={(e) => setRepoUrl(e.target.value)}
-              />
-              <button 
-                className="bg-primary text-primary-foreground rounded-r-md px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
-                onClick={handleFetchRepo}
+        <div className="space-y-4">
+          {/* 平台选择和仓库URL输入 */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="w-full sm:w-48">
+              <label className="block text-xs font-medium mb-1">Git平台</label>
+              <select
+                value={platform}
+                onChange={(e) => setPlatform(e.target.value)}
+                className="w-full px-3 py-2 text-sm rounded-md border border-border focus:outline-none focus:ring-1 focus:ring-primary bg-background"
               >
-                获取
-              </button>
+                {Object.entries(GIT_PLATFORMS).map(([key, value]) => (
+                  <option key={key} value={key}>
+                    {value.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="flex-1">
+              <label className="block text-xs font-medium mb-1">仓库URL</label>
+              <div className="flex">
+                <input
+                  type="text"
+                  placeholder={`https://${platform}.com/username/repo`}
+                  className="flex-1 px-3 py-2 text-sm rounded-l-md border border-border focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+                  value={repoUrl}
+                  onChange={(e) => setRepoUrl(e.target.value)}
+                />
+                <button 
+                  className="bg-primary text-primary-foreground rounded-r-md px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
+                  onClick={fetchRepoInfo}
+                  disabled={loading}
+                >
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : '获取'}
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="flex-1">
-            <label htmlFor="file-path" className="block text-xs font-medium mb-1">文件路径</label>
-            <div className="flex">
-              <input
-                type="text"
-                id="file-path"
-                placeholder="src/main.js"
-                className="flex-1 px-3 py-2 text-sm rounded-l-md border border-border focus:outline-none focus:ring-1 focus:ring-primary bg-background"
-                value={filePath}
-                onChange={(e) => setFilePath(e.target.value)}
-              />
-              <button 
-                className="bg-accent text-accent-foreground rounded-r-md px-4 py-2 text-sm font-medium hover:bg-accent/90 transition-colors"
-                onClick={handleInsertCode}
-              >
-                插入
-              </button>
+          {/* 错误提示 */}
+          {error && (
+            <div className="flex items-center gap-2 text-red-500 text-sm">
+              <AlertCircle className="h-4 w-4" />
+              {error}
             </div>
-          </div>
-        </div>
+          )}
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+          {/* 仓库内容 */}
+          {contents.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* 文件树 */}
+              <div className="border border-border rounded-md overflow-hidden">
+                <div className="p-2 border-b border-border">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <input
+                      type="text"
+                      placeholder="搜索文件..."
+                      className="w-full pl-8 pr-2 py-1 text-sm border border-border rounded-md bg-background"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
+                </div>
+                
+                <div className="p-2 max-h-[400px] overflow-y-auto">
+                  {filteredContents.map((item) => (
+                    <FileTreeItem
+                      key={item.path}
+                      item={{
+                        ...item,
+                        platform,
+                        owner,
+                        repo,
+                        branch
+                      }}
+                      onSelect={fetchFileContent}
+                      selectedPath={selectedFile?.path}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* 文件预览 */}
+              <div className="border border-border rounded-md overflow-hidden">
+                <div className="p-2 border-b border-border flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileIcon type="file" name={selectedFile?.name || ''} />
+                    <span className="text-sm font-medium truncate">
+                      {selectedFile?.name || '选择文件预览'}
+                    </span>
+                  </div>
+                  {selectedFile && (
+                    <button
+                      onClick={insertCode}
+                      className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90"
+                    >
+                      插入代码
+                    </button>
+                  )}
+                </div>
+                
+                <div className="p-2">
+                  {loading ? (
+                    <div className="flex items-center justify-center h-32">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                    </div>
+                  ) : fileContent ? (
+                    <pre className="text-sm overflow-auto max-h-[400px] bg-muted/30 p-2 rounded">
+                      {fileContent}
+                    </pre>
+                  ) : (
+                    <div className="text-center text-muted-foreground py-8">
+                      选择文件查看内容
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 代码显示选项 */}
+          <div className="flex items-center gap-4">
             <label className="flex items-center gap-1 text-xs">
               <input 
                 type="checkbox" 
@@ -95,14 +399,6 @@ export default function GitRepoTab() {
               突出显示语法
             </label>
           </div>
-          <button className="text-xs text-primary hover:underline flex items-center gap-1">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10" />
-              <path d="M12 16v-4" />
-              <path d="M12 8h.01" />
-            </svg>
-            查看使用帮助
-          </button>
         </div>
       </div>
     </div>

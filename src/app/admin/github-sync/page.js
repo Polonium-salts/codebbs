@@ -12,7 +12,10 @@ import {
   Folder,
   Check,
   AlertCircle,
-  X
+  X,
+  Key,
+  Save,
+  Info
 } from 'lucide-react';
 import GitHubExplorer from '@/components/GitHubExplorer';
 
@@ -92,6 +95,11 @@ export default function GitHubSyncPage() {
   const [loadingFile, setLoadingFile] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
   
+  // GitHub Token相关状态
+  const [showTokenInput, setShowTokenInput] = useState(false);
+  const [githubToken, setGithubToken] = useState('');
+  const [tokenSaved, setTokenSaved] = useState(false);
+  
   // 获取仓库信息
   const fetchRepoInfo = async () => {
     if (!owner || !repo) return;
@@ -100,7 +108,8 @@ export default function GitHubSyncPage() {
     setError(null);
     
     try {
-      const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`);
+      // 使用我们的后端API获取仓库信息
+      const response = await fetch(`/api/github/repo?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`);
       
       if (!response.ok) {
         const error = await response.json();
@@ -108,19 +117,17 @@ export default function GitHubSyncPage() {
       }
       
       const data = await response.json();
-      setRepoInfo(data);
+      setRepoInfo(data.repository);
+      setBranches(data.branches || []);
       
-      // 获取分支列表
-      const branchesResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/branches`);
+      // 设置默认分支
+      if (data.repository.default_branch) {
+        setBranch(data.repository.default_branch);
+      }
       
-      if (branchesResponse.ok) {
-        const branchesData = await branchesResponse.json();
-        setBranches(branchesData.map(b => b.name));
-        
-        // 默认使用默认分支
-        if (data.default_branch) {
-          setBranch(data.default_branch);
-        }
+      // 如果获取成功，自动加载根目录内容
+      if (data.repository) {
+        setMessage('仓库连接成功');
       }
     } catch (err) {
       console.error('获取仓库信息出错:', err);
@@ -149,54 +156,18 @@ export default function GitHubSyncPage() {
   // 处理文件选择
   const handleFileSelect = async (file) => {
     setSelectedFile(file);
-    setLoadingFile(true);
+    setFileContent(file.content);
     
-    try {
-      // 如果文件已经在选中列表中，不需要再次获取内容
-      const existingFile = selectedFiles.find(f => f.path === file.path);
-      if (existingFile) {
-        setFileContent(existingFile.content);
-        return;
+    // 添加到选中文件列表
+    setSelectedFiles(prev => {
+      // 如果已存在，替换它；否则添加
+      const exists = prev.some(f => f.path === file.path);
+      if (exists) {
+        return prev.map(f => f.path === file.path ? file : f);
+      } else {
+        return [...prev, file];
       }
-      
-      const response = await fetch('/api/github/files', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          owner,
-          repo,
-          path: file.path,
-          ref: branch
-        })
-      });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || '获取文件内容失败');
-      }
-      
-      const data = await response.json();
-      setFileContent(data.content);
-      
-      // 添加到选中文件列表
-      setSelectedFiles(prev => {
-        // 如果已存在，替换它；否则添加
-        const exists = prev.some(f => f.path === file.path);
-        if (exists) {
-          return prev.map(f => f.path === file.path ? { ...file, content: data.content } : f);
-        } else {
-          return [...prev, { ...file, content: data.content }];
-        }
-      });
-    } catch (err) {
-      console.error('获取文件内容出错:', err);
-      setError(err.message || '获取文件内容失败');
-      setFileContent(null);
-    } finally {
-      setLoadingFile(false);
-    }
+    });
   };
   
   // 移除选中的文件
@@ -251,6 +222,48 @@ export default function GitHubSyncPage() {
     }
   };
   
+  // 保存GitHub Token
+  const saveGitHubToken = async () => {
+    if (!githubToken.trim()) {
+      setError('请输入有效的GitHub Token');
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          GITHUB_TOKEN: githubToken
+        })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || '保存GitHub Token失败');
+      }
+      
+      setMessage('GitHub Token已保存，请刷新页面以应用更改');
+      setTokenSaved(true);
+      setShowTokenInput(false);
+      
+      // 3秒后刷新页面
+      setTimeout(() => {
+        window.location.reload();
+      }, 3000);
+    } catch (err) {
+      console.error('保存GitHub Token出错:', err);
+      setError(err.message || '保存GitHub Token失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   return (
     <div>
       <h1 className="text-3xl font-bold mb-6">GitHub 代码同步</h1>
@@ -274,6 +287,49 @@ export default function GitHubSyncPage() {
           </p>
         </div>
       )}
+      
+      {/* GitHub Token配置 */}
+      <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-6">
+        <div className="flex items-start gap-3">
+          <Info className="h-5 w-5 text-blue-600 mt-0.5" />
+          <div>
+            <h3 className="font-medium text-blue-800 mb-1 flex items-center">
+              GitHub API Token
+              <button
+                onClick={() => setShowTokenInput(!showTokenInput)}
+                className="ml-2 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-0.5 rounded"
+              >
+                {showTokenInput ? '隐藏' : '配置'}
+              </button>
+            </h3>
+            <p className="text-sm text-blue-700">
+              配置GitHub API Token可以提高API请求限制，并启用搜索功能。Token将安全地存储在服务器上。
+            </p>
+            
+            {showTokenInput && (
+              <div className="mt-3 flex items-center gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="password"
+                    value={githubToken}
+                    onChange={(e) => setGithubToken(e.target.value)}
+                    placeholder="输入GitHub个人访问令牌"
+                    className="w-full pl-8 pr-3 py-1.5 text-sm border border-blue-300 rounded-md bg-white"
+                  />
+                  <Key size={14} className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-blue-500" />
+                </div>
+                <button
+                  onClick={saveGitHubToken}
+                  disabled={loading || !githubToken.trim()}
+                  className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {loading ? <Loader2 size={14} className="animate-spin" /> : '保存'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
       
       {/* 仓库输入表单 */}
       <div className="bg-card p-6 rounded-xl border border-border/50 mb-6">
@@ -364,6 +420,7 @@ export default function GitHubSyncPage() {
               repo={repo}
               branch={branch}
               onFileSelect={handleFileSelect}
+              allowEdit={true}
             />
           </div>
           

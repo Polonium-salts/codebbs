@@ -1,7 +1,21 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { File, Folder, ChevronRight, AlertCircle, RefreshCw, Loader2, ArrowLeft } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { 
+  File, 
+  Folder, 
+  ChevronRight, 
+  AlertCircle, 
+  RefreshCw, 
+  Loader2, 
+  ArrowLeft, 
+  Search,
+  Edit,
+  Save,
+  X,
+  Check,
+  Lock
+} from 'lucide-react';
 
 // 格式化文件大小
 function formatFileSize(sizeInBytes) {
@@ -121,11 +135,42 @@ const FileTreeItem = ({ item, onFileSelect, onFolderOpen }) => {
   );
 };
 
-export default function GitHubExplorer({ owner, repo, branch, onFileSelect }) {
+// 搜索结果项组件
+const SearchResultItem = ({ item, onFileSelect }) => {
+  return (
+    <div 
+      className="flex items-center justify-between p-2 hover:bg-muted cursor-pointer rounded-md"
+      onClick={() => onFileSelect(item)}
+    >
+      <div className="flex items-center overflow-hidden">
+        <FileIcon fileName={item.name} />
+        <div className="truncate">
+          {item.path}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default function GitHubExplorer({ owner, repo, branch, onFileSelect, allowEdit = false }) {
   const [contents, setContents] = useState([]);
   const [currentPath, setCurrentPath] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [hasToken, setHasToken] = useState(false);
+  
+  // 搜索相关状态
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  
+  // 编辑相关状态
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedContent, setEditedContent] = useState('');
+  const [selectedFileContent, setSelectedFileContent] = useState(null);
+  const [selectedFileInfo, setSelectedFileInfo] = useState(null);
+  const editorRef = useRef(null);
   
   // 加载目录内容
   const loadContents = async (path = '') => {
@@ -145,6 +190,7 @@ export default function GitHubExplorer({ owner, repo, branch, onFileSelect }) {
       }
       
       const data = await response.json();
+      setHasToken(data.hasToken);
       
       // 按类型和名称排序：目录优先
       const sortedContents = data.contents.sort((a, b) => {
@@ -156,6 +202,9 @@ export default function GitHubExplorer({ owner, repo, branch, onFileSelect }) {
       
       setContents(sortedContents);
       setCurrentPath(path);
+      
+      // 清除搜索状态
+      setShowSearchResults(false);
     } catch (err) {
       console.error('加载目录内容出错:', err);
       setError(err.message);
@@ -165,7 +214,47 @@ export default function GitHubExplorer({ owner, repo, branch, onFileSelect }) {
   };
   
   // 处理文件选择
-  const handleFileSelect = (file) => {
+  const handleFileSelect = async (file) => {
+    // 清除编辑状态
+    setIsEditing(false);
+    setEditedContent('');
+    
+    // 如果是搜索结果，需要先获取文件内容
+    if (!file.content) {
+      try {
+        setIsLoading(true);
+        const response = await fetch('/api/github/files', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            owner,
+            repo,
+            path: file.path,
+            ref: branch
+          })
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || '获取文件内容失败');
+        }
+        
+        const data = await response.json();
+        file = { ...file, content: data.content, size: data.size, sha: data.sha };
+      } catch (err) {
+        console.error('获取文件内容出错:', err);
+        setError(err.message);
+        return;
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
+    setSelectedFileInfo(file);
+    setSelectedFileContent(file.content);
+    
     if (onFileSelect) {
       onFileSelect(file);
     }
@@ -192,12 +281,118 @@ export default function GitHubExplorer({ owner, repo, branch, onFileSelect }) {
     loadContents(parentPath);
   };
   
+  // 处理搜索
+  const handleSearch = async () => {
+    if (!searchQuery.trim() || !owner || !repo) return;
+    
+    setIsSearching(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/github/files', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          owner,
+          repo,
+          query: searchQuery,
+          ref: branch
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || '搜索文件失败');
+      }
+      
+      const data = await response.json();
+      setSearchResults(data.results || []);
+      setShowSearchResults(true);
+      setHasToken(data.hasToken);
+    } catch (err) {
+      console.error('搜索文件出错:', err);
+      setError(err.message);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+  
+  // 清除搜索
+  const clearSearch = () => {
+    setSearchQuery('');
+    setSearchResults([]);
+    setShowSearchResults(false);
+  };
+  
+  // 处理编辑模式切换
+  const toggleEditMode = () => {
+    if (isEditing) {
+      // 退出编辑模式
+      setIsEditing(false);
+    } else {
+      // 进入编辑模式
+      setEditedContent(selectedFileContent);
+      setIsEditing(true);
+      
+      // 聚焦编辑器
+      setTimeout(() => {
+        if (editorRef.current) {
+          editorRef.current.focus();
+        }
+      }, 100);
+    }
+  };
+  
+  // 保存编辑内容
+  const saveEditedContent = () => {
+    if (!selectedFileInfo) return;
+    
+    // 更新选中的文件内容
+    const updatedFile = {
+      ...selectedFileInfo,
+      content: editedContent
+    };
+    
+    setSelectedFileContent(editedContent);
+    setIsEditing(false);
+    
+    if (onFileSelect) {
+      onFileSelect(updatedFile);
+    }
+  };
+  
   // 首次加载和仓库/分支变化时刷新
   useEffect(() => {
     if (owner && repo && branch) {
       loadContents();
     }
   }, [owner, repo, branch]);
+  
+  // 处理搜索快捷键
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ctrl+F 或 Cmd+F 触发搜索
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f' && !isEditing) {
+        e.preventDefault();
+        document.getElementById('github-search-input')?.focus();
+      }
+      
+      // Esc 键清除搜索
+      if (e.key === 'Escape' && showSearchResults) {
+        clearSearch();
+      }
+      
+      // Enter 键执行搜索
+      if (e.key === 'Enter' && document.activeElement.id === 'github-search-input') {
+        handleSearch();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showSearchResults, isEditing, searchQuery]);
   
   return (
     <div className="border border-border rounded-lg overflow-hidden">
@@ -207,6 +402,12 @@ export default function GitHubExplorer({ owner, repo, branch, onFileSelect }) {
           <span className="ml-2 px-2 py-0.5 bg-muted text-xs rounded-full">
             {branch}
           </span>
+          {!hasToken && (
+            <span className="ml-2 flex items-center text-xs text-amber-600">
+              <Lock size={12} className="mr-1" />
+              未配置Token
+            </span>
+          )}
         </h3>
         
         <div className="flex items-center gap-2">
@@ -236,8 +437,41 @@ export default function GitHubExplorer({ owner, repo, branch, onFileSelect }) {
       </div>
       
       <div className="p-3">
-        {/* 面包屑导航 */}
-        <BreadcrumbNav path={currentPath} onNavigate={handleNavigate} />
+        {/* 搜索框 */}
+        <div className="mb-3 flex items-center">
+          <div className="relative flex-1">
+            <input
+              id="github-search-input"
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="搜索文件... (Ctrl+F)"
+              className="w-full pl-8 pr-10 py-1.5 text-sm border border-border rounded-md bg-background"
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            />
+            <Search size={14} className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
+            {searchQuery && (
+              <button
+                onClick={clearSearch}
+                className="absolute right-2.5 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <button
+            onClick={handleSearch}
+            disabled={isSearching || !searchQuery.trim()}
+            className="ml-2 px-3 py-1.5 bg-primary text-white text-sm rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSearching ? <Loader2 size={14} className="animate-spin" /> : '搜索'}
+          </button>
+        </div>
+        
+        {/* 面包屑导航 - 仅在非搜索模式下显示 */}
+        {!showSearchResults && (
+          <BreadcrumbNav path={currentPath} onNavigate={handleNavigate} />
+        )}
         
         {/* 错误提示 */}
         {error && (
@@ -257,8 +491,39 @@ export default function GitHubExplorer({ owner, repo, branch, onFileSelect }) {
           </div>
         )}
         
-        {/* 文件列表 */}
-        {!isLoading && !error && (
+        {/* 搜索结果 */}
+        {showSearchResults && !isLoading && (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-medium">搜索结果 ({searchResults.length})</h4>
+              <button
+                onClick={clearSearch}
+                className="text-xs text-primary hover:underline"
+              >
+                返回文件浏览
+              </button>
+            </div>
+            
+            <div className="space-y-1 max-h-[500px] overflow-y-auto p-1">
+              {searchResults.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  未找到匹配的文件
+                </div>
+              ) : (
+                searchResults.map((item) => (
+                  <SearchResultItem
+                    key={item.path}
+                    item={item}
+                    onFileSelect={handleFileSelect}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+        )}
+        
+        {/* 文件列表 - 仅在非搜索模式下显示 */}
+        {!showSearchResults && !isLoading && !error && (
           <div className="space-y-1 max-h-[500px] overflow-y-auto p-1">
             {contents.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
@@ -274,6 +539,67 @@ export default function GitHubExplorer({ owner, repo, branch, onFileSelect }) {
                 />
               ))
             )}
+          </div>
+        )}
+        
+        {/* 文件内容预览/编辑 */}
+        {selectedFileInfo && selectedFileContent && (
+          <div className="mt-4 border border-border rounded-lg overflow-hidden">
+            <div className="p-3 bg-muted/30 border-b border-border flex items-center justify-between">
+              <h3 className="text-sm font-medium truncate flex-1">
+                {selectedFileInfo.path}
+              </h3>
+              
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  {formatFileSize(selectedFileInfo.size)}
+                </span>
+                
+                {allowEdit && (
+                  isEditing ? (
+                    <>
+                      <button
+                        onClick={saveEditedContent}
+                        className="p-1.5 hover:bg-green-100 text-green-600 rounded-md"
+                        title="保存"
+                      >
+                        <Save size={14} />
+                      </button>
+                      <button
+                        onClick={() => setIsEditing(false)}
+                        className="p-1.5 hover:bg-red-100 text-red-600 rounded-md"
+                        title="取消"
+                      >
+                        <X size={14} />
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={toggleEditMode}
+                      className="p-1.5 hover:bg-muted rounded-md"
+                      title="编辑"
+                    >
+                      <Edit size={14} />
+                    </button>
+                  )
+                )}
+              </div>
+            </div>
+            
+            <div className="p-3">
+              {isEditing ? (
+                <textarea
+                  ref={editorRef}
+                  value={editedContent}
+                  onChange={(e) => setEditedContent(e.target.value)}
+                  className="w-full h-80 p-3 bg-muted/30 rounded-md text-sm font-mono resize-none border border-border focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              ) : (
+                <pre className="overflow-auto p-3 bg-muted/30 rounded-md text-sm max-h-80 font-mono">
+                  {selectedFileContent}
+                </pre>
+              )}
+            </div>
           </div>
         )}
       </div>

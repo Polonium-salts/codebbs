@@ -1,6 +1,20 @@
 import { NextResponse } from 'next/server';
 import { Octokit } from '@octokit/core';
 
+// 获取GitHub API认证token
+const getGitHubToken = () => {
+  return process.env.GITHUB_TOKEN || null;
+};
+
+// 创建Octokit实例
+const createOctokit = () => {
+  const token = getGitHubToken();
+  if (token) {
+    return new Octokit({ auth: token });
+  }
+  return new Octokit();
+};
+
 // 处理GET请求 - 获取仓库文件/文件夹列表
 export async function GET(request) {
   try {
@@ -18,7 +32,7 @@ export async function GET(request) {
       );
     }
     
-    const octokit = new Octokit();
+    const octokit = createOctokit();
     
     // 获取仓库内容
     const response = await octokit.request('GET /repos/{owner}/{repo}/contents/{path}', {
@@ -44,7 +58,8 @@ export async function GET(request) {
       
       return NextResponse.json({
         contents,
-        path
+        path,
+        hasToken: !!getGitHubToken()
       });
     } else {
       // 返回单个文件信息
@@ -55,7 +70,8 @@ export async function GET(request) {
         size: response.data.size,
         sha: response.data.sha,
         url: response.data.html_url,
-        content: Buffer.from(response.data.content, 'base64').toString('utf-8')
+        content: Buffer.from(response.data.content, 'base64').toString('utf-8'),
+        hasToken: !!getGitHubToken()
       });
     }
   } catch (error) {
@@ -69,7 +85,7 @@ export async function GET(request) {
       );
     } else if (error.status === 403) {
       return NextResponse.json(
-        { message: 'API速率限制已达到或权限不足' },
+        { message: 'API速率限制已达到或权限不足，请考虑添加GITHUB_TOKEN环境变量' },
         { status: 403 }
       );
     }
@@ -94,7 +110,7 @@ export async function POST(request) {
       );
     }
     
-    const octokit = new Octokit();
+    const octokit = createOctokit();
     
     // 获取文件内容
     const response = await octokit.request('GET /repos/{owner}/{repo}/contents/{path}', {
@@ -123,7 +139,8 @@ export async function POST(request) {
       path: response.data.path,
       content,
       size: response.data.size,
-      sha: response.data.sha
+      sha: response.data.sha,
+      hasToken: !!getGitHubToken()
     });
   } catch (error) {
     console.error('GitHub API 错误:', error);
@@ -136,13 +153,76 @@ export async function POST(request) {
       );
     } else if (error.status === 403) {
       return NextResponse.json(
-        { message: 'API速率限制已达到或权限不足' },
+        { message: 'API速率限制已达到或权限不足，请考虑添加GITHUB_TOKEN环境变量' },
         { status: 403 }
       );
     }
     
     return NextResponse.json(
       { message: error.message || '获取文件内容失败' },
+      { status: error.status || 500 }
+    );
+  }
+}
+
+// 处理PUT请求 - 搜索仓库文件
+export async function PUT(request) {
+  try {
+    // 从请求体获取搜索参数
+    const { owner, repo, query, ref = 'main' } = await request.json();
+    
+    if (!owner || !repo || !query) {
+      return NextResponse.json(
+        { message: '缺少必需参数: owner, repo, query' },
+        { status: 400 }
+      );
+    }
+    
+    const octokit = createOctokit();
+    
+    // 使用GitHub搜索API
+    const response = await octokit.request('GET /search/code', {
+      q: `repo:${owner}/${repo} ${query}`,
+      per_page: 30,
+      headers: {
+        'X-GitHub-Api-Version': '2022-11-28'
+      }
+    });
+    
+    // 格式化搜索结果
+    const results = response.data.items.map(item => ({
+      name: item.name,
+      path: item.path,
+      url: item.html_url,
+      repository: {
+        name: item.repository.name,
+        url: item.repository.html_url
+      }
+    }));
+    
+    return NextResponse.json({
+      total_count: response.data.total_count,
+      results,
+      hasToken: !!getGitHubToken()
+    });
+  } catch (error) {
+    console.error('GitHub API 搜索错误:', error);
+    
+    // 处理常见的GitHub API错误
+    if (error.status === 403) {
+      return NextResponse.json(
+        { message: 'API速率限制已达到或权限不足，搜索功能需要GITHUB_TOKEN环境变量' },
+        { status: 403 }
+      );
+    } else if (error.status === 422) {
+      return NextResponse.json(
+        { message: '搜索查询无效或超出限制' },
+        { status: 422 }
+      );
+    }
+    
+    return NextResponse.json(
+      { message: error.message || '搜索仓库文件失败' },
       { status: error.status || 500 }
     );
   }
