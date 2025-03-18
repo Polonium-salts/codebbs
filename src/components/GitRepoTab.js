@@ -126,7 +126,7 @@ const FileTreeItem = ({ item, level = 0, onSelect, selectedPath }) => {
   );
 };
 
-export default function GitRepoTab() {
+export default function GitRepoTab({ onSaveRepoInfo }) {
   const [platform, setPlatform] = useState('github');
   const [repoUrl, setRepoUrl] = useState('');
   const [owner, setOwner] = useState('');
@@ -141,6 +141,7 @@ export default function GitRepoTab() {
   const [showLineNumbers, setShowLineNumbers] = useState(true);
   const [highlightSyntax, setHighlightSyntax] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [repoSaved, setRepoSaved] = useState(false);
   
   // 解析仓库URL
   const parseRepoUrl = (url) => {
@@ -169,6 +170,7 @@ export default function GitRepoTab() {
     
     setLoading(true);
     setError(null);
+    setRepoSaved(false);
     
     try {
       const { owner, repo } = parseRepoUrl(repoUrl);
@@ -184,11 +186,11 @@ export default function GitRepoTab() {
       
       const data = await response.json();
       setBranches(data.branches || []);
-      setBranch(data.default_branch || GIT_PLATFORMS[platform].defaultBranch);
+      setBranch(data.repository.default_branch || GIT_PLATFORMS[platform].defaultBranch);
       
       // 获取根目录内容
       const contentsResponse = await fetch(
-        `/api/git/contents?platform=${platform}&owner=${owner}&repo=${repo}&branch=${branch}`
+        `/api/git/contents?platform=${platform}&owner=${owner}&repo=${repo}&branch=${data.repository.default_branch || GIT_PLATFORMS[platform].defaultBranch}`
       );
       if (!contentsResponse.ok) {
         throw new Error('获取仓库内容失败');
@@ -245,6 +247,26 @@ export default function GitRepoTab() {
   const filteredContents = contents.filter(item =>
     item.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  
+  // 保存仓库信息到帖子
+  const saveRepoInfo = () => {
+    if (!owner || !repo) {
+      setError('请先获取有效的仓库');
+      return;
+    }
+    
+    // 调用父组件传递的保存函数
+    if (onSaveRepoInfo) {
+      onSaveRepoInfo({
+        gitPlatform: platform,
+        gitOwner: owner,
+        gitRepo: repo,
+        gitBranch: branch
+      });
+      setRepoSaved(true);
+      setTimeout(() => setRepoSaved(false), 3000);
+    }
+  };
   
   return (
     <div className="bg-card border border-border/60 rounded-lg overflow-hidden">
@@ -304,78 +326,112 @@ export default function GitRepoTab() {
             </div>
           )}
 
+          {/* 保存成功提示 */}
+          {repoSaved && (
+            <div className="flex items-center gap-2 text-green-500 text-sm">
+              <Check className="h-4 w-4" />
+              Git仓库信息已保存到帖子中
+            </div>
+          )}
+
           {/* 仓库内容 */}
           {contents.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* 文件树 */}
-              <div className="border border-border rounded-md overflow-hidden">
-                <div className="p-2 border-b border-border">
-                  <div className="relative">
-                    <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <input
-                      type="text"
-                      placeholder="搜索文件..."
-                      className="w-full pl-8 pr-2 py-1 text-sm border border-border rounded-md bg-background"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                  </div>
-                </div>
-                
-                <div className="p-2 max-h-[400px] overflow-y-auto">
-                  {filteredContents.map((item) => (
-                    <FileTreeItem
-                      key={item.path}
-                      item={{
-                        ...item,
-                        platform,
-                        owner,
-                        repo,
-                        branch
-                      }}
-                      onSelect={fetchFileContent}
-                      selectedPath={selectedFile?.path}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {/* 文件预览 */}
-              <div className="border border-border rounded-md overflow-hidden">
-                <div className="p-2 border-b border-border flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <FileIcon type="file" name={selectedFile?.name || ''} />
-                    <span className="text-sm font-medium truncate">
-                      {selectedFile?.name || '选择文件预览'}
-                    </span>
-                  </div>
-                  {selectedFile && (
-                    <button
-                      onClick={insertCode}
-                      className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90"
+            <>
+              {/* 分支选择和保存按钮 */}
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center">
+                    <GitBranch className="h-4 w-4 mr-1 text-muted-foreground" />
+                    <select
+                      value={branch}
+                      onChange={(e) => setBranch(e.target.value)}
+                      className="text-sm border border-border rounded px-2 py-1 bg-background"
                     >
-                      插入代码
-                    </button>
-                  )}
+                      {branches.map(b => (
+                        <option key={b} value={b}>{b}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                
-                <div className="p-2">
-                  {loading ? (
-                    <div className="flex items-center justify-center h-32">
-                      <Loader2 className="h-6 w-6 animate-spin" />
+                <button
+                  onClick={saveRepoInfo}
+                  className="px-3 py-1 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90"
+                >
+                  保存到帖子
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* 文件树 */}
+                <div className="border border-border rounded-md overflow-hidden">
+                  <div className="p-2 border-b border-border">
+                    <div className="relative">
+                      <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <input
+                        type="text"
+                        placeholder="搜索文件..."
+                        className="w-full pl-8 pr-2 py-1 text-sm border border-border rounded-md bg-background"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                      />
                     </div>
-                  ) : fileContent ? (
-                    <pre className="text-sm overflow-auto max-h-[400px] bg-muted/30 p-2 rounded">
-                      {fileContent}
-                    </pre>
-                  ) : (
-                    <div className="text-center text-muted-foreground py-8">
-                      选择文件查看内容
+                  </div>
+                  
+                  <div className="p-2 max-h-[400px] overflow-y-auto">
+                    {filteredContents.map((item) => (
+                      <FileTreeItem
+                        key={item.path}
+                        item={{
+                          ...item,
+                          platform,
+                          owner,
+                          repo,
+                          branch
+                        }}
+                        onSelect={fetchFileContent}
+                        selectedPath={selectedFile?.path}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* 文件预览 */}
+                <div className="border border-border rounded-md overflow-hidden">
+                  <div className="p-2 border-b border-border flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileIcon type="file" name={selectedFile?.name || ''} />
+                      <span className="text-sm font-medium truncate">
+                        {selectedFile?.name || '选择文件预览'}
+                      </span>
                     </div>
-                  )}
+                    {selectedFile && (
+                      <button
+                        onClick={insertCode}
+                        className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90"
+                      >
+                        插入代码
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="p-2">
+                    {loading ? (
+                      <div className="flex items-center justify-center h-32">
+                        <Loader2 className="h-6 w-6 animate-spin" />
+                      </div>
+                    ) : fileContent ? (
+                      <pre className="text-sm overflow-auto max-h-[400px] bg-muted/30 p-2 rounded">
+                        {fileContent}
+                      </pre>
+                    ) : (
+                      <div className="text-center text-muted-foreground py-8">
+                        选择文件查看内容
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+            </>
           )}
 
           {/* 代码显示选项 */}

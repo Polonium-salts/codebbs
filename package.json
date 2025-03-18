@@ -13,6 +13,7 @@
     "seed": "node prisma/seed.js"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.0",
     "@octokit/core": "^5.2.0",
     "@prisma/client": "^6.5.0",
     "@radix-ui/react-tabs": "^1.1.3",

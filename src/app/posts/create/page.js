@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { Loader2 } from 'lucide-react';
+import GitRepoTab from '@/components/GitRepoTab';
 
 export default function CreatePostPage() {
   const router = useRouter();
@@ -16,6 +17,8 @@ export default function CreatePostPage() {
   const [categoryId, setCategoryId] = useState('');
   const [published, setPublished] = useState(true);
   const [previewMode, setPreviewMode] = useState(false);
+  const [activeTab, setActiveTab] = useState('editor'); // 'editor' or 'git'
+  const [gitRepoInfo, setGitRepoInfo] = useState(null);
   
   // 加载状态
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -60,12 +63,12 @@ export default function CreatePostPage() {
     setEditorHeight(`${e.target.scrollHeight}px`);
   };
 
-  // 处理表单提交
+  // 处理提交创建文章请求
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!title.trim() || !content.trim() || !categoryId) {
-      setError('请填写文章标题、内容并选择分类');
+    if (!title || !content || !categoryId) {
+      setError('请填写所有必填项');
       return;
     }
     
@@ -82,7 +85,13 @@ export default function CreatePostPage() {
           title,
           content,
           categoryId,
-          published
+          published,
+          ...(gitRepoInfo && {
+            gitPlatform: gitRepoInfo.gitPlatform,
+            gitOwner: gitRepoInfo.gitOwner,
+            gitRepo: gitRepoInfo.gitRepo,
+            gitBranch: gitRepoInfo.gitBranch
+          })
         }),
       });
       
@@ -90,15 +99,20 @@ export default function CreatePostPage() {
         const data = await response.json();
         router.push(`/posts/${data.post.id}`);
       } else {
-        const errorData = await response.json();
-        setError(errorData.message || '发布文章失败');
+        const data = await response.json();
+        setError(data.message || '发布文章失败');
       }
     } catch (error) {
-      console.error('发布文章时出错:', error);
+      console.error('发布文章出错:', error);
       setError('发布文章时发生错误');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // 处理保存Git仓库信息
+  const handleSaveRepoInfo = (repoInfo) => {
+    setGitRepoInfo(repoInfo);
   };
 
   // 插入Markdown格式
@@ -214,22 +228,12 @@ export default function CreatePostPage() {
 
   // 如果已登录，显示文章编辑表单
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">创建新文章</h1>
-        <Link href="/" className="text-primary hover:underline">
-          返回首页
-        </Link>
-      </div>
+    <div className="container max-w-4xl mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold mb-6">创建新文章</h1>
       
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-6 text-red-600">
-          <p className="flex items-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-            </svg>
-            {error}
-          </p>
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          {error}
         </div>
       )}
       
@@ -278,26 +282,33 @@ export default function CreatePostPage() {
           )}
         </div>
         
-        {/* 编辑/预览切换 */}
-        <div className="flex border border-border rounded-t-lg overflow-hidden">
+        {/* 编辑/预览/Git仓库切换 */}
+        <div className="flex rounded-t-lg overflow-hidden border border-border">
           <button
             type="button"
-            className={`flex-1 py-2 text-center text-sm font-medium ${!previewMode ? 'bg-primary text-white' : 'bg-card hover:bg-accent/10'}`}
-            onClick={() => setPreviewMode(false)}
+            className={`flex-1 py-2 text-center text-sm font-medium ${activeTab === 'editor' && !previewMode ? 'bg-primary text-white' : 'bg-card hover:bg-accent/10'}`}
+            onClick={() => {setActiveTab('editor'); setPreviewMode(false);}}
           >
             编辑
           </button>
           <button
             type="button"
-            className={`flex-1 py-2 text-center text-sm font-medium ${previewMode ? 'bg-primary text-white' : 'bg-card hover:bg-accent/10'}`}
-            onClick={() => setPreviewMode(true)}
+            className={`flex-1 py-2 text-center text-sm font-medium ${activeTab === 'editor' && previewMode ? 'bg-primary text-white' : 'bg-card hover:bg-accent/10'}`}
+            onClick={() => {setActiveTab('editor'); setPreviewMode(true);}}
           >
             预览
+          </button>
+          <button
+            type="button"
+            className={`flex-1 py-2 text-center text-sm font-medium ${activeTab === 'git' ? 'bg-primary text-white' : 'bg-card hover:bg-accent/10'}`}
+            onClick={() => setActiveTab('git')}
+          >
+            Git仓库
           </button>
         </div>
         
         {/* Markdown工具栏 */}
-        {!previewMode && (
+        {activeTab === 'editor' && !previewMode && (
           <div className="flex flex-wrap items-center gap-1 p-2 bg-card border-x border-t border-border rounded-t-lg">
             <button
               type="button"
@@ -366,33 +377,37 @@ export default function CreatePostPage() {
           </div>
         )}
         
-        {/* 内容输入/预览 */}
-        <div className={previewMode ? "" : "relative"}>
-          {previewMode ? (
-            <div 
-              className="w-full min-h-[300px] p-4 border border-border rounded-b-lg bg-card/30"
-              style={{ minHeight: editorHeight }}
-            >
+        {/* 内容编辑/预览/Git仓库 */}
+        {activeTab === 'editor' ? (
+          <div className={previewMode ? "" : "relative"}>
+            {previewMode ? (
               <div 
-                className="prose prose-sm max-w-none dark:prose-invert"
-                dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
+                className="w-full min-h-[300px] p-4 border border-border rounded-b-lg bg-card/30"
+                style={{ minHeight: editorHeight }}
+              >
+                <div 
+                  className="prose prose-sm max-w-none dark:prose-invert"
+                  dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
+                />
+              </div>
+            ) : (
+              <textarea
+                id="content"
+                value={content}
+                onChange={(e) => {
+                  setContent(e.target.value);
+                  handleEditorResize(e);
+                }}
+                onInput={handleEditorResize}
+                className="w-full p-4 border border-border rounded-b-lg resize-y min-h-[300px] bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
+                placeholder="在这里使用Markdown格式编写您的文章内容..."
+                required
               />
-            </div>
-          ) : (
-            <textarea
-              id="content"
-              value={content}
-              onChange={(e) => {
-                setContent(e.target.value);
-                handleEditorResize(e);
-              }}
-              onInput={handleEditorResize}
-              className="w-full p-4 border border-border rounded-b-lg resize-y min-h-[300px] bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
-              placeholder="在这里使用Markdown格式编写您的文章内容..."
-              required
-            />
-          )}
-        </div>
+            )}
+          </div>
+        ) : (
+          <GitRepoTab onSaveRepoInfo={handleSaveRepoInfo} />
+        )}
         
         {/* 发布选项 */}
         <div className="flex items-center space-x-2">
@@ -407,6 +422,17 @@ export default function CreatePostPage() {
             立即发布（取消勾选将保存为草稿）
           </label>
         </div>
+        
+        {/* Git仓库信息提示 */}
+        {gitRepoInfo && (
+          <div className="flex items-center space-x-2 text-sm text-green-600">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
+              <path d="M9 18c-4.51 2-5-2-7-2" />
+            </svg>
+            <span>已关联 Git 仓库: {gitRepoInfo.gitOwner}/{gitRepoInfo.gitRepo} ({gitRepoInfo.gitBranch})</span>
+          </div>
+        )}
         
         {/* 提交按钮 */}
         <div className="flex justify-end">

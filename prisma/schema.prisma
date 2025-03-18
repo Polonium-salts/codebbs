@@ -56,6 +56,10 @@ model Post {
   comments    Comment[]
   likes       Like[]
   bookmarks   Bookmark[]
+  gitPlatform String?   // 仓库平台: github, gitee, gitlab, gitea
+  gitOwner    String?   // 仓库所有者/组织
+  gitRepo     String?   // 仓库名称
+  gitBranch   String?   // 仓库分支
 }
 
 model Comment {

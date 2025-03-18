@@ -1,7 +1,11 @@
 import withPWA from 'next-pwa';
 
 /** @type {import('next').NextConfig} */
-const nextConfig = {};
+const nextConfig = {
+  images: {
+    domains: ['ui-avatars.com']
+  }
+};
 
 // 配置PWA
 const pwaConfig = withPWA({

@@ -6,10 +6,13 @@ import { formatDistanceToNow } from 'date-fns';
 
 // 动态导入客户端组件
 const TabSwitcher = dynamic(() => import('@/components/TabSwitcher'), { ssr: false });
-const GitRepoTab = dynamic(() => import('@/components/GitRepoTab'), { ssr: false });
+const ReadOnlyGitRepoTab = dynamic(() => import('@/components/ReadOnlyGitRepoTab'), { ssr: false });
 const ArticleContentTab = dynamic(() => import('@/components/ArticleContentTab'), { ssr: false });
 
 export default function ArticleTabsWrapper({ post }) {
+  // 检查文章是否有Git仓库信息
+  const hasGitRepo = post?.gitOwner && post?.gitRepo;
+  
   // 标签页配置
   const tabs = [
     {
@@ -23,8 +26,12 @@ export default function ArticleTabsWrapper({ post }) {
           <line x1="10" y1="9" x2="8" y2="9" />
         </svg>
       )
-    },
-    {
+    }
+  ];
+  
+  // 如果有Git仓库信息，添加Git仓库标签页
+  if (hasGitRepo) {
+    tabs.push({
       label: "Git仓库",
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -32,13 +39,13 @@ export default function ArticleTabsWrapper({ post }) {
           <path d="M9 18c-4.51 2-5-2-7-2" />
         </svg>
       )
-    }
-  ];
+    });
+  }
 
   return (
     <TabSwitcher tabs={tabs}>
       <ArticleContentTab post={post} formatDistanceToNow={formatDistanceToNow} />
-      <GitRepoTab />
+      {hasGitRepo && <ReadOnlyGitRepoTab postData={post} />}
     </TabSwitcher>
   );
 } 

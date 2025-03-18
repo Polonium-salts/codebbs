@@ -100,13 +100,13 @@ export function Sidebar() {
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 mt-4 text-center">
-                  <Link href="/friends" className="bg-background/60 rounded-md p-2 hover:bg-primary/10 transition-colors">
+                  <Link href="/follows" className="bg-background/60 rounded-md p-2 hover:bg-primary/10 transition-colors">
                     <div className="font-semibold">
                       {loading ? "..." : userStats.following}
                     </div>
                     <div className="text-xs text-muted-foreground">关注</div>
                   </Link>
-                  <Link href="/friends" className="bg-background/60 rounded-md p-2 hover:bg-primary/10 transition-colors">
+                  <Link href="/follows" className="bg-background/60 rounded-md p-2 hover:bg-primary/10 transition-colors">
                     <div className="font-semibold">
                       {loading ? "..." : userStats.followers}
                     </div>

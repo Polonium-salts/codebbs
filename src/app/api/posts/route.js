@@ -18,7 +18,16 @@ export async function POST(request) {
     
     // 获取请求数据
     const data = await request.json();
-    const { title, content, categoryId, published = true } = data;
+    const { 
+      title, 
+      content, 
+      categoryId, 
+      published = true,
+      gitPlatform,
+      gitOwner,
+      gitRepo,
+      gitBranch
+    } = data;
     
     // 验证必要字段
     if (!title || !content || !categoryId) {
@@ -47,7 +56,11 @@ export async function POST(request) {
         content,
         published: !!published,
         authorId: session.user.id,
-        categoryId
+        categoryId,
+        gitPlatform,
+        gitOwner,
+        gitRepo,
+        gitBranch
       },
       include: {
         author: {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { Octokit } from '@octokit/core';
+import https from 'https';
 
 // 支持的Git平台配置
 const GIT_PLATFORMS = {
@@ -35,7 +36,10 @@ const getPlatformClient = (platform) => {
     request: {
       headers: {
         'Accept': 'application/vnd.github.v3+json'
-      }
+      },
+      agent: new https.Agent({
+        rejectUnauthorized: false // 忽略证书验证
+      })
     }
   });
 };
@@ -43,62 +47,74 @@ const getPlatformClient = (platform) => {
 // 处理GET请求 - 获取仓库信息
 export async function GET(request) {
   try {
-    const url = new URL(request.url);
-    const platform = url.searchParams.get('platform');
-    const owner = url.searchParams.get('owner');
-    const repo = url.searchParams.get('repo');
-
-    if (!platform || !owner || !repo) {
+    // 获取查询参数
+    const { searchParams } = new URL(request.url);
+    const platform = searchParams.get('platform') || 'github';
+    const owner = searchParams.get('owner');
+    const repo = searchParams.get('repo');
+    
+    // 必要参数验证
+    if (!owner || !repo) {
       return NextResponse.json(
-        { message: '缺少必需参数: platform, owner, repo' },
+        { error: '缺少必要参数' },
         { status: 400 }
       );
     }
-
-    const client = getPlatformClient(platform);
-
-    // 获取仓库信息
-    const repoResponse = await client.request(`GET /repos/${owner}/${repo}`);
-    const repoData = repoResponse.data;
-
-    // 获取分支列表
-    const branchesResponse = await client.request(`GET /repos/${owner}/${repo}/branches`);
-    const branches = branchesResponse.data.map(branch => branch.name);
-
-    return NextResponse.json({
-      repository: {
-        name: repoData.name,
-        description: repoData.description,
-        default_branch: repoData.default_branch,
-        private: repoData.private,
-        html_url: repoData.html_url,
-        clone_url: repoData.clone_url,
-        stargazers_count: repoData.stargazers_count,
-        watchers_count: repoData.watchers_count,
-        forks_count: repoData.forks_count
-      },
-      branches,
-      hasToken: !!process.env[`${platform.toUpperCase()}_TOKEN`]
+    
+    // 从环境变量获取GitHub token
+    const githubToken = process.env.GITHUB_TOKEN;
+    
+    // 创建Octokit实例，配置忽略证书验证
+    const octokit = new Octokit({
+      auth: githubToken,
+      request: {
+        agent: new https.Agent({
+          rejectUnauthorized: false // 忽略证书验证
+        })
+      }
     });
-  } catch (error) {
-    console.error('Git API 错误:', error);
-
-    // 处理常见的API错误
-    if (error.status === 404) {
+    
+    // 根据平台决定请求方式
+    if (platform === 'github') {
+      try {
+        // 获取仓库信息
+        const repoResponse = await octokit.request('GET /repos/{owner}/{repo}', {
+          owner,
+          repo
+        });
+        
+        // 获取仓库分支列表
+        const branchesResponse = await octokit.request('GET /repos/{owner}/{repo}/branches', {
+          owner,
+          repo
+        });
+        
+        // 提取分支名称列表
+        const branches = branchesResponse.data.map(branch => branch.name);
+        
+        return NextResponse.json({
+          repository: repoResponse.data,
+          branches
+        });
+      } catch (error) {
+        console.error('GitHub API 请求错误:', error);
+        return NextResponse.json(
+          { error: error.message || 'GitHub API 请求失败' },
+          { status: error.status || 500 }
+        );
+      }
+    } else {
+      // 其他Git平台的处理逻辑
       return NextResponse.json(
-        { message: '找不到指定的仓库' },
-        { status: 404 }
-      );
-    } else if (error.status === 403) {
-      return NextResponse.json(
-        { message: 'API速率限制已达到或权限不足，请考虑添加平台Token' },
-        { status: 403 }
+        { error: `暂不支持 ${platform} 平台` },
+        { status: 400 }
       );
     }
-
+  } catch (error) {
+    console.error('获取仓库信息错误:', error);
     return NextResponse.json(
-      { message: error.message || '获取仓库信息失败' },
-      { status: error.status || 500 }
+      { error: '获取仓库信息时发生错误' },
+      { status: 500 }
     );
   }
 } 
