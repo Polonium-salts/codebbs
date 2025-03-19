@@ -30,6 +30,8 @@ model User {
   following     Follow[]  @relation("Followers")
   likes         Like[]
   bookmarks     Bookmark[]
+  sentMessages  Message[] @relation("MessageSender")
+  receivedMessages Message[] @relation("MessageReceiver")
 }
 
 model Category {
@@ -127,4 +129,16 @@ model Plugin {
   hooks        String?   // JSON格式的挂载点
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+}
+
+model Message {
+  id            String    @id @default(cuid())
+  content       String
+  type          String    @default("PRIVATE") // PRIVATE, SYSTEM
+  isRead        Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  senderId      String?
+  receiverId    String
+  sender        User?     @relation("MessageSender", fields: [senderId], references: [id], onDelete: SetNull)
+  receiver      User      @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
 }

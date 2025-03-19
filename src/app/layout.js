@@ -9,6 +9,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { Sidebar } from "@/components/Sidebar";
 import Navbar from "@/components/Navbar";
 import { InstallPWA } from "@/components/InstallPWA";
+import { Toaster } from "react-hot-toast";
 
 export default function RootLayout({ children, session }) {
   useEffect(() => {
@@ -102,6 +103,25 @@ export default function RootLayout({ children, session }) {
             
             {/* PWA安装按钮 */}
             <InstallPWA />
+            
+            {/* Toast通知 */}
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                duration: 3000,
+                style: {
+                  background: 'var(--background)',
+                  color: 'var(--foreground)',
+                  border: '1px solid var(--border)',
+                },
+                success: {
+                  icon: '✅',
+                },
+                error: {
+                  icon: '❌',
+                },
+              }}
+            />
           </AuthProvider>
         </ThemeProvider>
       </body>

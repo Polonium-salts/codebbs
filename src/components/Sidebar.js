@@ -9,7 +9,7 @@ const navigation = [
   { name: "首页", href: "/", icon: HomeIcon },
   { name: "文章", href: "/posts", icon: DocumentIcon },
   { name: "分类", href: "/categories", icon: FolderIcon },
-  { name: "好友", href: "/friends", icon: UsersIcon },
+  { name: "消息", href: "/messages", icon: MessageSquareIcon },
   { name: "个人主页", href: "/profile", icon: UserIcon },
 ];
 
