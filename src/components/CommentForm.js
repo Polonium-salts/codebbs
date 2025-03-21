@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import EmojiPicker from "./EmojiPicker";
 
 export default function CommentForm({ postId }) {
   const { data: session } = useSession();
@@ -10,6 +11,24 @@ export default function CommentForm({ postId }) {
   const [content, setContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const textareaRef = useRef(null);
+
+  // 自动调整文本域高度
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      const newHeight = Math.max(100, Math.min(300, textareaRef.current.scrollHeight));
+      textareaRef.current.style.height = `${newHeight}px`;
+    }
+  }, [content]);
+
+  // 处理键盘事件（支持Ctrl+Enter发送）
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      handleSubmit(e);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -48,6 +67,15 @@ export default function CommentForm({ postId }) {
     }
   };
   
+  // 处理表情选择
+  const handleEmojiSelect = (emoji) => {
+    setContent(prev => prev + emoji);
+    // 选择表情后聚焦输入框
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  };
+  
   if (!session) return null;
   
   return (
@@ -65,21 +93,29 @@ export default function CommentForm({ postId }) {
       
       <div className="relative">
         <textarea
+          ref={textareaRef}
           className="w-full p-3 rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-transparent resize-none min-h-[100px] bg-card text-sm"
-          placeholder="写下你的评论..."
+          placeholder="写下你的评论... (Ctrl+Enter发送)"
           value={content}
           onChange={(e) => setContent(e.target.value)}
+          onKeyDown={handleKeyDown}
           required
         ></textarea>
         
-        <div className="flex items-center justify-between mt-3">
-          <div className="text-xs text-muted-foreground">
-            支持Markdown格式
+        <div className="flex items-center justify-between mt-2">
+          <div className="text-xs text-muted-foreground flex items-center">
+            <span className="mr-2">支持Markdown格式</span>
+            <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+            {content && (
+              <span className="ml-2">
+                {content.length} / 1000
+              </span>
+            )}
           </div>
           <button
             type="submit"
             className="inline-flex items-center justify-center rounded-lg bg-primary text-white px-4 py-2 text-sm font-medium hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-colors disabled:opacity-70"
-            disabled={isSubmitting}
+            disabled={isSubmitting || !content.trim()}
           >
             {isSubmitting ? (
               <>
@@ -94,7 +130,7 @@ export default function CommentForm({ postId }) {
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" />
                 </svg>
-                发布评论
+                发布评论 (Ctrl+Enter)
               </>
             )}
           </button>

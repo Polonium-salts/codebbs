@@ -9,6 +9,7 @@ import { Tabs } from '@/components/ui/Tabs';
 import Spinner from '@/components/ui/Spinner';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
+import { useSocket } from '@/lib/socketClient';
 
 const MessagePage = () => {
   const [messages, setMessages] = useState([]);
@@ -17,7 +18,9 @@ const MessagePage = () => {
   const [activeTab, setActiveTab] = useState('all');
   const [unreadCount, setUnreadCount] = useState(0);
   const [retrying, setRetrying] = useState(false);
+  const [expandedSystemMessages, setExpandedSystemMessages] = useState(false);
   const router = useRouter();
+  const { socket, isConnected } = useSocket();
   
   // 加载消息
   const fetchMessages = async () => {
@@ -134,7 +137,12 @@ const MessagePage = () => {
     });
   };
   
-  // 将消息按发送者分组并获取最新消息
+  // 处理系统消息展开/收起
+  const handleSystemMessagesToggle = () => {
+    setExpandedSystemMessages(!expandedSystemMessages);
+  };
+  
+  // 获取分组后的消息列表
   const getGroupedMessages = () => {
     if (!messages || messages.length === 0) return [];
     
@@ -202,6 +210,50 @@ const MessagePage = () => {
     );
   };
   
+  // 渲染系统消息列表
+  const renderSystemMessages = (messages) => {
+    return (
+      <div className="space-y-4 mt-4">
+        {messages.map((message) => (
+          <div
+            key={message.id}
+            className={`p-4 rounded-lg border ${
+              !message.isRead ? 'bg-primary/5 border-primary/20' : 'bg-card border-border/50'
+            }`}
+          >
+            <div className="flex justify-between items-start mb-2">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 7.5V6.108c0-1.135.845-2.098 1.976-2.192.373-.03.748-.057 1.123-.08M15.75 18H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08M15.75 18.75v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5A3.375 3.375 0 0 0 6.375 7.5H5.25m11.9-3.664A2.251 2.251 0 0 0 15 2.25h-1.5a2.251 2.251 0 0 0-2.15 1.586m5.8 0c.065.21.1.433.1.664v.75h-6V4.5c0-.231.035-.454.1-.664M6.75 7.5H4.875c-.621 0-1.125.504-1.125 1.125v12c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V16.5a9 9 0 0 0-9-9Z" />
+                  </svg>
+                </div>
+                <span className="font-medium">系统消息</span>
+                {!message.isRead && (
+                  <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                    新消息
+                  </span>
+                )}
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {formatTime(message.createdAt)}
+              </span>
+            </div>
+            <p className="text-sm text-foreground">{message.content}</p>
+            {!message.isRead && (
+              <button
+                onClick={() => markAsRead(message.id)}
+                className="mt-2 text-xs text-primary hover:text-primary/80 transition-colors"
+              >
+                标为已读
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  };
+  
   // 获取头像
   const getAvatar = (sender) => {
     if (sender.id === 'system') {
@@ -233,6 +285,53 @@ const MessagePage = () => {
   
   // 获取分组后的消息列表
   const groupedMessages = getGroupedMessages();
+  
+  // 处理实时消息通知
+  useEffect(() => {
+    if (!socket) return;
+    
+    // 监听新消息
+    const handleNewMessage = (message) => {
+      // 检查是否已存在该消息（防止重复）
+      if (messages.some(m => m.id === message.id)) return;
+      
+      // 添加新消息
+      setMessages(prev => [message, ...prev]);
+      
+      // 更新未读消息计数
+      setUnreadCount(prev => prev + 1);
+      
+      // 显示通知
+      toast.success(`收到来自 ${message.sender?.name || '系统'} 的新消息`);
+    };
+    
+    // 监听已读消息通知
+    const handleMessageRead = ({ messageId }) => {
+      // 更新消息状态
+      setMessages(prev => 
+        prev.map(msg => msg.id === messageId ? { ...msg, isRead: true } : msg)
+      );
+    };
+    
+    // 注册事件监听
+    socket.on('newMessage', handleNewMessage);
+    socket.on('systemMessage', handleNewMessage);
+    socket.on('messageRead', handleMessageRead);
+    
+    return () => {
+      // 清理事件监听
+      socket.off('newMessage', handleNewMessage);
+      socket.off('systemMessage', handleNewMessage);
+      socket.off('messageRead', handleMessageRead);
+    };
+  }, [socket, messages]);
+  
+  // 显示连接状态
+  useEffect(() => {
+    if (isConnected === false) {
+      toast.error('消息服务连接已断开，将尝试重新连接');
+    }
+  }, [isConnected]);
   
   return (
     <div className="max-w-4xl mx-auto p-4">
@@ -314,52 +413,105 @@ const MessagePage = () => {
       ) : (
         <div className="rounded-lg border border-border/50 overflow-hidden">
           {groupedMessages.map((sender) => (
-            <Link
-              key={sender.id}
-              href={sender.id === 'system' ? '#' : `/messages/${sender.id}`}
-              className={`flex items-center p-4 border-b border-border/50 last:border-b-0 transition-colors hover:bg-accent/5 ${
-                sender.hasUnread ? 'bg-primary/5' : 'bg-card'
-              }`}
-              onClick={(e) => {
-                if (sender.id === 'system') {
-                  e.preventDefault();
-                  // 系统消息直接展开查看
-                }
-              }}
-            >
-              {/* 头像 */}
-              <div className="relative">
-                {getAvatar(sender)}
-                {sender.unreadCount > 0 && (
-                  <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-medium rounded-full min-w-5 h-5 flex items-center justify-center px-1">
-                    {sender.unreadCount > 99 ? '99+' : sender.unreadCount}
-                  </div>
-                )}
-              </div>
-              
-              {/* 中间内容区 */}
-              <div className="flex-1 ml-3 overflow-hidden">
-                <div className="flex justify-between items-baseline mb-1">
-                  <span className={`font-medium truncate ${sender.hasUnread ? 'text-foreground' : 'text-muted-foreground'}`}>
-                    {sender.name}
-                  </span>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
-                    {formatTime(sender.latestMessage.createdAt)}
-                  </span>
+            <div key={sender.id}>
+              {sender.id === 'system' ? (
+                <div className="p-4 border-b border-border/50 last:border-b-0 bg-card">
+                  <button
+                    onClick={handleSystemMessagesToggle}
+                    className="w-full flex items-center justify-between"
+                  >
+                    <div className="flex items-center">
+                      <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 text-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-7 h-7">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 7.5V6.108c0-1.135.845-2.098 1.976-2.192.373-.03.748-.057 1.123-.08M15.75 18H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08M15.75 18.75v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5A3.375 3.375 0 0 0 6.375 7.5H5.25m11.9-3.664A2.251 2.251 0 0 0 15 2.25h-1.5a2.251 2.251 0 0 0-2.15 1.586m5.8 0c.065.21.1.433.1.664v.75h-6V4.5c0-.231.035-.454.1-.664M6.75 7.5H4.875c-.621 0-1.125.504-1.125 1.125v12c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V16.5a9 9 0 0 0-9-9Z" />
+                        </svg>
+                      </div>
+                      <div className="ml-3 text-left">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">系统消息</span>
+                          {sender.unreadCount > 0 && (
+                            <span className="inline-flex items-center rounded-full bg-red-500 text-white text-xs font-medium px-2 py-0.5">
+                              {sender.unreadCount > 99 ? '99+' : sender.unreadCount}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {sender.latestMessage.content}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        {formatTime(sender.latestMessage.createdAt)}
+                      </span>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth={1.5}
+                        stroke="currentColor"
+                        className={`w-4 h-4 transition-transform ${
+                          expandedSystemMessages ? 'rotate-180' : ''
+                        }`}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                      </svg>
+                    </div>
+                  </button>
+                  {expandedSystemMessages && renderSystemMessages(sender.messages)}
                 </div>
-                <p className={`text-sm truncate ${sender.hasUnread ? 'text-foreground font-normal' : 'text-muted-foreground'}`}>
-                  {sender.latestMessage.content}
-                </p>
-              </div>
-              
-              {/* 右侧箭头 */}
-              <div className="ml-2 text-muted-foreground">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                </svg>
-              </div>
-            </Link>
+              ) : (
+                <Link
+                  href={`/messages/${sender.id}`}
+                  className={`flex items-center p-4 border-b border-border/50 last:border-b-0 transition-colors hover:bg-accent/5 ${
+                    sender.hasUnread ? 'bg-primary/5' : 'bg-card'
+                  }`}
+                >
+                  {/* 头像 */}
+                  <div className="relative">
+                    {getAvatar(sender)}
+                    {sender.unreadCount > 0 && (
+                      <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-medium rounded-full min-w-5 h-5 flex items-center justify-center px-1">
+                        {sender.unreadCount > 99 ? '99+' : sender.unreadCount}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* 中间内容区 */}
+                  <div className="flex-1 ml-3 overflow-hidden">
+                    <div className="flex justify-between items-baseline mb-1">
+                      <span className={`font-medium truncate ${sender.hasUnread ? 'text-foreground' : 'text-muted-foreground'}`}>
+                        {sender.name}
+                      </span>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
+                        {formatTime(sender.latestMessage.createdAt)}
+                      </span>
+                    </div>
+                    <p className={`text-sm truncate ${sender.hasUnread ? 'text-foreground font-normal' : 'text-muted-foreground'}`}>
+                      {sender.latestMessage.content}
+                    </p>
+                  </div>
+                  
+                  {/* 右侧箭头 */}
+                  <div className="ml-2 text-muted-foreground">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                    </svg>
+                  </div>
+                </Link>
+              )}
+            </div>
           ))}
+        </div>
+      )}
+      
+      {!isConnected && (
+        <div className="fixed bottom-4 right-4 bg-destructive/90 text-destructive-foreground px-4 py-2 rounded-md shadow-lg flex items-center gap-2 z-50">
+          <span className="animate-pulse relative flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive-foreground opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-destructive-foreground"></span>
+          </span>
+          消息服务已断开
         </div>
       )}
     </div>
