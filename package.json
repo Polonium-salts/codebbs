@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "cross-env NODE_ENV=production node server.js",
     "lint": "next lint",
-    "generate-pwa-icons": "node scripts/generate-pwa-icons.js"
+    "generate-pwa-icons": "node scripts/generate-pwa-icons.js",
+    "analyze-db": "node scripts/analyze-db.js",
+    "backup-db": "node -e \"require('fs').mkdirSync('./backups', { recursive: true }); require('fs').copyFileSync('./prisma/dev.db', './backups/backup-' + new Date().toISOString().replace(/[:.]/g, '-') + '.db'); console.log('数据库已备份到 backups 目录')\""
   },
   "prisma": {
     "seed": "node prisma/seed.js"

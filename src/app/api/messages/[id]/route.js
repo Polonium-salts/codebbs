@@ -1,12 +1,22 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
-import { prisma } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 
 // 获取与特定用户的消息记录
 export async function GET(request, { params }) {
   try {
-    const session = await getServerSession(authOptions);
+    let session;
+    try {
+      session = await getServerSession(authOptions);
+      console.log('Session:', session);
+    } catch (sessionError) {
+      console.error('获取会话出错:', sessionError);
+      return NextResponse.json(
+        { error: '获取会话信息失败' },
+        { status: 500 }
+      );
+    }
     
     // 检查用户是否已登录
     if (!session || !session.user) {
@@ -62,7 +72,7 @@ export async function GET(request, { params }) {
   } catch (error) {
     console.error('获取消息记录时出错:', error);
     return NextResponse.json(
-      { error: '获取消息记录时发生错误' },
+      { error: error.message || '获取消息记录时发生错误' },
       { status: 500 }
     );
   }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -19,8 +19,17 @@ const MessagePage = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [retrying, setRetrying] = useState(false);
   const [expandedSystemMessages, setExpandedSystemMessages] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(''); // 存储当前用户ID
+  const [isNewMessageModalOpen, setIsNewMessageModalOpen] = useState(false);
+  const [recipients, setRecipients] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [messageContent, setMessageContent] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
   const router = useRouter();
   const { socket, isConnected } = useSocket();
+  const searchInputRef = useRef(null);
   
   // 加载消息
   const fetchMessages = async () => {
@@ -35,6 +44,9 @@ const MessagePage = () => {
         router.push('/login');
         return;
       }
+      
+      // 设置当前用户ID
+      setCurrentUserId(session.user.id);
       
       const response = await fetch(`/api/messages?type=${activeTab}`);
       
@@ -148,12 +160,23 @@ const MessagePage = () => {
     
     const messagesBySender = {};
     const systemMessages = { id: 'system', type: 'SYSTEM', messages: [] };
+    const sentMessagesRecipients = new Set(); // 存储已发送消息的接收者ID
+    const receivedMessagesSenders = new Set(); // 存储已接收消息的发送者ID
     
     // 按发送者分组消息
     messages.forEach(msg => {
       if (msg.type === 'SYSTEM') {
         systemMessages.messages.push(msg);
         return;
+      }
+      
+      // 标记已发送和已接收消息
+      if (msg.senderId && msg.senderId !== currentUserId) {
+        // 收到的消息
+        receivedMessagesSenders.add(msg.senderId);
+      } else if (msg.receiverId && msg.receiverId !== currentUserId) {
+        // 发送的消息
+        sentMessagesRecipients.add(msg.receiverId);
       }
       
       const senderId = msg.sender?.id || 'unknown';
@@ -173,8 +196,21 @@ const MessagePage = () => {
       }
     });
     
+    // 只保留双方都有消息的对话（双向通信）
+    // 同时保留有未读消息的对话（即使没有回复）
+    const mutualMessagesOrUnread = Object.values(messagesBySender).filter(sender => {
+      // 系统消息总是显示
+      if (sender.id === 'system') return true;
+      
+      // 如果有未读消息，总是显示
+      if (sender.hasUnread) return true;
+      
+      // 检查是否双向通信（我发过消息给他，他也发过消息给我）
+      return sentMessagesRecipients.has(sender.id) && receivedMessagesSenders.has(sender.id);
+    });
+    
     // 获取每个发送者的最新消息
-    const result = Object.values(messagesBySender).map(sender => {
+    const result = mutualMessagesOrUnread.map(sender => {
       // 按时间排序消息
       sender.messages.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       
@@ -333,13 +369,128 @@ const MessagePage = () => {
     }
   }, [isConnected]);
   
+  // 打开新建私信模态框
+  const openNewMessageModal = async () => {
+    setIsNewMessageModalOpen(true);
+    setSearchQuery('');
+    setSearchResults([]);
+    setSelectedUser(null);
+    setMessageContent('');
+
+    try {
+      // 获取最近联系人列表（可选）
+      const response = await fetch('/api/users/recent');
+      if (response.ok) {
+        const data = await response.json();
+        setRecipients(data.users || []);
+      }
+    } catch (err) {
+      console.error('获取最近联系人失败:', err);
+    }
+    
+    // 聚焦搜索框
+    setTimeout(() => {
+      if (searchInputRef.current) {
+        searchInputRef.current.focus();
+      }
+    }, 100);
+  };
+  
+  // 关闭新建私信模态框
+  const closeNewMessageModal = () => {
+    setIsNewMessageModalOpen(false);
+  };
+  
+  // 搜索用户
+  const searchUsers = async (query) => {
+    setSearchQuery(query);
+    
+    if (!query.trim() || query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSearchResults(data.users || []);
+      }
+    } catch (err) {
+      console.error('搜索用户失败:', err);
+      toast.error('搜索用户失败');
+    }
+  };
+  
+  // 选择用户
+  const selectUser = (user) => {
+    setSelectedUser(user);
+    setSearchQuery(user.name);
+    setSearchResults([]);
+  };
+  
+  // 发送私信
+  const sendPrivateMessage = async () => {
+    if (!selectedUser || !messageContent.trim()) {
+      toast.error('请选择接收者并输入消息内容');
+      return;
+    }
+    
+    setSendingMessage(true);
+    
+    try {
+      const response = await fetch('/api/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          receiverId: selectedUser.id,
+          content: messageContent.trim(),
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('发送消息失败');
+      }
+      
+      const data = await response.json();
+      
+      toast.success('消息发送成功');
+      
+      // 跳转到聊天页面
+      router.push(`/messages/${selectedUser.id}`);
+      
+      // 关闭模态框
+      closeNewMessageModal();
+      
+    } catch (err) {
+      console.error('发送私信失败:', err);
+      toast.error('发送消息失败，请稍后再试');
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+  
   return (
     <div className="max-w-4xl mx-auto p-4">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-2">消息中心</h1>
-        <p className="text-muted-foreground">
-          查看您的聊天记录和系统通知
-        </p>
+      <div className="mb-6 flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold mb-2">消息中心</h1>
+          <p className="text-muted-foreground">
+            查看您的聊天记录和系统通知
+          </p>
+        </div>
+        
+        <button
+          onClick={openNewMessageModal}
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors flex items-center"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 mr-2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          新建私信
+        </button>
       </div>
       
       <div className="mb-4 flex justify-between items-center">
@@ -512,6 +663,126 @@ const MessagePage = () => {
             <span className="relative inline-flex rounded-full h-3 w-3 bg-destructive-foreground"></span>
           </span>
           消息服务已断开
+        </div>
+      )}
+      
+      {/* 新建私信模态框 */}
+      {isNewMessageModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-background rounded-lg shadow-lg w-full max-w-md mx-4">
+            <div className="p-4 border-b border-border">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-semibold">发送新私信</h3>
+                <button
+                  onClick={closeNewMessageModal}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-4">
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">收件人</label>
+                <div className="relative">
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => searchUsers(e.target.value)}
+                    placeholder="搜索用户名..."
+                    className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  />
+                  {searchResults.length > 0 && !selectedUser && (
+                    <div className="absolute z-10 w-full mt-1 bg-background border border-border rounded-md shadow-lg max-h-60 overflow-auto">
+                      {searchResults.map((user) => (
+                        <div
+                          key={user.id}
+                          onClick={() => selectUser(user)}
+                          className="flex items-center p-2 hover:bg-accent/10 cursor-pointer"
+                        >
+                          {user.image ? (
+                            <img src={user.image} alt={user.name} className="w-8 h-8 rounded-full mr-2" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-accent/50 flex items-center justify-center mr-2">
+                              <span>{user.name?.[0] || '?'}</span>
+                            </div>
+                          )}
+                          <span>{user.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">消息内容</label>
+                <textarea
+                  value={messageContent}
+                  onChange={(e) => setMessageContent(e.target.value)}
+                  placeholder="请输入消息内容..."
+                  rows={4}
+                  className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                ></textarea>
+              </div>
+              
+              <div className="flex justify-end">
+                <button
+                  onClick={closeNewMessageModal}
+                  className="px-4 py-2 border border-border rounded-md mr-2 hover:bg-accent/10 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={sendPrivateMessage}
+                  disabled={!selectedUser || !messageContent.trim() || sendingMessage}
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                >
+                  {sendingMessage ? (
+                    <>
+                      <Spinner className="w-4 h-4 mr-2" />
+                      发送中...
+                    </>
+                  ) : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                      </svg>
+                      发送消息
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+            
+            {recipients.length > 0 && !selectedUser && (
+              <div className="p-4 border-t border-border">
+                <div className="text-sm font-medium mb-2">最近联系人</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {recipients.map((user) => (
+                    <div
+                      key={user.id}
+                      onClick={() => selectUser(user)}
+                      className="flex items-center p-2 rounded-md hover:bg-accent/10 cursor-pointer"
+                    >
+                      {user.image ? (
+                        <img src={user.image} alt={user.name} className="w-6 h-6 rounded-full mr-2" />
+                      ) : (
+                        <div className="w-6 h-6 rounded-full bg-accent/50 flex items-center justify-center mr-2">
+                          <span className="text-xs">{user.name?.[0] || '?'}</span>
+                        </div>
+                      )}
+                      <span className="truncate">{user.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/[...nextauth]/route';
-import { prisma } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 
 // 获取用户消息列表
 export async function GET(request) {
@@ -69,7 +69,7 @@ export async function GET(request) {
   } catch (error) {
     console.error('获取消息列表时出错:', error);
     return NextResponse.json(
-      { error: '获取消息列表时发生错误' },
+      { error: error.message || '获取消息列表时发生错误' },
       { status: 500 }
     );
   }
@@ -138,7 +138,7 @@ export async function POST(request) {
   } catch (error) {
     console.error('发送消息时出错:', error);
     return NextResponse.json(
-      { error: '发送消息时发生错误' },
+      { error: error.message || '发送消息时发生错误' },
       { status: 500 }
     );
   }
@@ -232,7 +232,7 @@ export async function PUT(request) {
   } catch (error) {
     console.error('发送系统消息时出错:', error);
     return NextResponse.json(
-      { error: '发送系统消息时发生错误' },
+      { error: error.message || '发送系统消息时发生错误' },
       { status: 500 }
     );
   }
