@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { useState, useEffect } from "react";
+import { FadeEffect } from "./FadeEffect";
+import { motion } from "framer-motion";
 
 const navigation = [
   { name: "首页", href: "/", icon: HomeIcon },
@@ -62,7 +64,7 @@ export function Sidebar() {
           </Link>
         </div>
         {session && (
-          <div className="mb-6">
+          <FadeEffect duration={0.4} delay={0.1} className="mb-6">
             <div className="rounded-lg border border-border/60 overflow-hidden bg-gradient-to-br from-background to-accent/5">
               <div className="p-5">
                 <div className="flex items-center gap-4">
@@ -121,14 +123,23 @@ export function Sidebar() {
                 </div>
               </div>
             </div>
-          </div>
+          </FadeEffect>
         )}
         <nav className="flex flex-1 flex-col">
           <ul role="list" className="flex flex-1 flex-col gap-y-7">
             <li>
               <ul role="list" className="-mx-2 space-y-1">
-                {navigation.map((item) => (
-                  <li key={item.name}>
+                {navigation.map((item, index) => (
+                  <motion.li 
+                    key={item.name}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{
+                      duration: 0.3,
+                      delay: 0.1 + index * 0.05,
+                      ease: [0.22, 1, 0.36, 1]
+                    }}
+                  >
                     <Link
                       href={item.href}
                       className={`
@@ -142,71 +153,84 @@ export function Sidebar() {
                       <item.icon className="h-5 w-5 shrink-0 relative z-10" aria-hidden="true" />
                       <span className="relative z-10">{item.name}</span>
                     </Link>
-                  </li>
+                  </motion.li>
                 ))}
               </ul>
             </li>
             
             {/* 管理员菜单 */}
             {session?.user?.role === 'ADMIN' && (
-              <li>
-                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground pl-2 mb-2">
-                  管理选项
-                </div>
-                <ul role="list" className="-mx-2 space-y-1">
-                  {adminNavigation.map((item) => (
-                    <li key={item.name}>
-                      <Link
-                        href={item.href}
-                        className={`
-                          group flex gap-x-3 rounded-md p-2 text-sm font-semibold
-                          ${pathname === item.href
-                            ? "bg-primary text-primary-foreground"
-                            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                          }
-                        `}
+              <FadeEffect duration={0.4} delay={0.3}>
+                <li>
+                  <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground pl-2 mb-2">
+                    管理选项
+                  </div>
+                  <ul role="list" className="-mx-2 space-y-1">
+                    {adminNavigation.map((item, index) => (
+                      <motion.li 
+                        key={item.name}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{
+                          duration: 0.3,
+                          delay: 0.3 + index * 0.05,
+                          ease: [0.22, 1, 0.36, 1]
+                        }}
                       >
-                        <item.icon className="h-5 w-5 shrink-0 relative z-10" aria-hidden="true" />
-                        <span className="relative z-10">{item.name}</span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </li>
+                        <Link
+                          href={item.href}
+                          className={`
+                            group flex gap-x-3 rounded-md p-2 text-sm font-semibold
+                            ${pathname === item.href
+                              ? "bg-primary text-primary-foreground"
+                              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                            }
+                          `}
+                        >
+                          <item.icon className="h-5 w-5 shrink-0 relative z-10" aria-hidden="true" />
+                          <span className="relative z-10">{item.name}</span>
+                        </Link>
+                      </motion.li>
+                    ))}
+                  </ul>
+                </li>
+              </FadeEffect>
             )}
             
             <li className="mt-auto">
-              {session ? (
-                <div className="space-y-4">
-                  <button
-                    onClick={() => signOut()}
-                    className="w-full group relative inline-flex items-center justify-center rounded-md p-2 text-sm font-medium text-primary transition-colors hover:text-foreground"
-                  >
-                    <div className="absolute inset-0 rounded-md bg-gradient-to-tr from-primary/10 via-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <LogoutIcon className="h-5 w-5 mr-2 relative z-10" />
-                    <span className="relative z-10">退出登录</span>
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <Link
-                    href="/login"
-                    className="w-full group relative inline-flex items-center justify-center rounded-md p-2 text-sm font-medium text-primary transition-colors hover:text-foreground"
-                  >
-                    <div className="absolute inset-0 rounded-md bg-gradient-to-tr from-primary/10 via-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <LoginIcon className="h-5 w-5 mr-2 relative z-10" />
-                    <span className="relative z-10">登录</span>
-                  </Link>
-                  <Link
-                    href="/register"
-                    className="w-full group relative inline-flex items-center justify-center rounded-md p-2 text-sm font-medium text-primary transition-colors hover:text-foreground"
-                  >
-                    <div className="absolute inset-0 rounded-md bg-gradient-to-tr from-primary/10 via-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <UserPlusIcon className="h-5 w-5 mr-2 relative z-10" />
-                    <span className="relative z-10">注册</span>
-                  </Link>
-                </div>
-              )}
+              <FadeEffect duration={0.4} delay={0.4}>
+                {session ? (
+                  <div className="space-y-4">
+                    <button
+                      onClick={() => signOut()}
+                      className="w-full group relative inline-flex items-center justify-center rounded-md p-2 text-sm font-medium text-primary transition-colors hover:text-foreground"
+                    >
+                      <div className="absolute inset-0 rounded-md bg-gradient-to-tr from-primary/10 via-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <LogoutIcon className="h-5 w-5 mr-2 relative z-10" />
+                      <span className="relative z-10">退出登录</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Link
+                      href="/login"
+                      className="w-full group relative inline-flex items-center justify-center rounded-md p-2 text-sm font-medium text-primary transition-colors hover:text-foreground"
+                    >
+                      <div className="absolute inset-0 rounded-md bg-gradient-to-tr from-primary/10 via-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <LoginIcon className="h-5 w-5 mr-2 relative z-10" />
+                      <span className="relative z-10">登录</span>
+                    </Link>
+                    <Link
+                      href="/register"
+                      className="w-full group relative inline-flex items-center justify-center rounded-md p-2 text-sm font-medium text-primary transition-colors hover:text-foreground"
+                    >
+                      <div className="absolute inset-0 rounded-md bg-gradient-to-tr from-primary/10 via-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <UserPlusIcon className="h-5 w-5 mr-2 relative z-10" />
+                      <span className="relative z-10">注册</span>
+                    </Link>
+                  </div>
+                )}
+              </FadeEffect>
             </li>
           </ul>
         </nav>

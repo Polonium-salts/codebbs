@@ -11,6 +11,8 @@ import { Sidebar } from "@/components/Sidebar";
 import Navbar from "@/components/Navbar";
 import { InstallPWA } from "@/components/InstallPWA";
 import { Toaster } from "react-hot-toast";
+import { PageTransition } from "@/components/PageTransition";
+import { LoadingBar } from "@/components/LoadingBar";
 
 export default function RootLayout({ children, session }) {
   useEffect(() => {
@@ -53,6 +55,9 @@ export default function RootLayout({ children, session }) {
         <ThemeProvider defaultTheme="dark" enableSystem={false}>
           <AuthProvider session={session}>
             <SocketProvider>
+              {/* 添加顶部加载进度条 */}
+              <LoadingBar />
+              
               {/* Background gradients */}
               <div className="fixed inset-0 -z-10 bg-background">
                 <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]" />
@@ -61,12 +66,20 @@ export default function RootLayout({ children, session }) {
               </div>
               
               <div className="relative flex min-h-screen">
+                {/* Sidebar - 保持静态不参与过渡动画 */}
                 <Sidebar />
+                
+                {/* 内容区域 - 应用过渡动画 */}
                 <div className="flex w-full flex-1 flex-col">
+                  {/* Navbar - 保持静态不参与过渡动画 */}
                   <Navbar />
+                  
+                  {/* Main content - 应用过渡动画 */}
                   <main className="flex-1">
                     <div className="container py-6 lg:py-8 lg:pl-72">
-                      {children}
+                      <PageTransition>
+                        {children}
+                      </PageTransition>
                     </div>
                   </main>
                 </div>

@@ -15,7 +15,10 @@ import {
   X,
   Key,
   Save,
-  Info
+  Info,
+  Clock,
+  GitBranch,
+  GitCommit
 } from 'lucide-react';
 import GitHubExplorer from '@/components/GitHubExplorer';
 
