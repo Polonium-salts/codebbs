@@ -21,6 +21,7 @@ import {
   CornerUpRight
 } from 'lucide-react';
 import Link from 'next/link';
+import EmojiPicker from '@/components/EmojiPicker';
 
 export default function CommentsManagement() {
   const [comments, setComments] = useState([]);
@@ -610,14 +611,21 @@ export default function CommentsManagement() {
                 <label className="block text-sm font-medium mb-1" htmlFor="replyContent">
                   回复内容
                 </label>
-                <textarea
-                  id="replyContent"
-                  value={replyContent}
-                  onChange={(e) => setReplyContent(e.target.value)}
-                  className="w-full px-3 py-2 border border-border rounded-md bg-background min-h-[100px]"
-                  placeholder="输入回复内容..."
-                  required
-                />
+                <div className="relative">
+                  <textarea
+                    id="replyContent"
+                    value={replyContent}
+                    onChange={(e) => setReplyContent(e.target.value)}
+                    className="w-full px-3 py-2 border border-border rounded-md bg-background min-h-[100px]"
+                    placeholder="输入回复内容..."
+                    required
+                  />
+                  <div className="absolute right-2 bottom-2">
+                    <EmojiPicker 
+                      onEmojiSelect={(emoji) => setReplyContent(prev => prev + emoji)} 
+                    />
+                  </div>
+                </div>
               </div>
               <div className="flex justify-end gap-3">
                 <button
