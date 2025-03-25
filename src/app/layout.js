@@ -6,7 +6,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "./api/auth/[...nextauth]/route";
 import AuthProvider from "@/components/AuthProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import { SocketProvider } from "@/lib/socketClient";
 import { Sidebar } from "@/components/Sidebar";
 import Navbar from "@/components/Navbar";
 import { InstallPWA } from "@/components/InstallPWA";
@@ -52,48 +51,77 @@ export default function RootLayout({ children, session }) {
       <body className="min-h-screen bg-background font-sans antialiased selection:bg-primary/10">
         <ThemeProvider defaultTheme="dark" enableSystem={false}>
           <AuthProvider session={session}>
-            <SocketProvider>
-              {/* Background gradients */}
-              <div className="fixed inset-0 -z-10 bg-background">
-                <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]" />
-                <div className="absolute left-0 right-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
-                <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
-              </div>
-              
-              <div className="relative flex min-h-screen">
-                <Sidebar />
-                <div className="flex w-full flex-1 flex-col">
-                  <Navbar />
-                  <main className="flex-1">
-                    <div className="container py-6 lg:py-8 lg:pl-72">
-                      {children}
+            {/* Background gradients */}
+            <div className="fixed inset-0 -z-10 bg-background">
+              <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]" />
+              <div className="absolute left-0 right-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
+              <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
+            </div>
+            
+            <div className="relative flex min-h-screen">
+              <Sidebar />
+              <div className="flex w-full flex-1 flex-col">
+                <Navbar />
+                <main className="flex-1">
+                  <div className="container py-6 lg:py-8 lg:pl-72">
+                    {children}
+                  </div>
+                </main>
+                <footer className="relative border-t bg-background/50 backdrop-blur-sm lg:pl-72">
+                  <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
+                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
+                  <div className="container relative z-10 py-6">
+                    <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
+                      <p className="text-center text-sm text-muted-foreground">
+                        © {new Date().getFullYear()} Forum App. Built with Next.js and Tailwind CSS.
+                      </p>
+                      <div className="flex items-center space-x-4">
+                        <a
+                          href="https://github.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group relative rounded-lg p-2 text-muted-foreground transition-colors hover:text-accent-foreground"
+                        >
+                          <div className="absolute inset-0 rounded-lg bg-gradient-to-tr from-primary/10 via-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                          <GithubIcon className="h-5 w-5 transition-transform group-hover:scale-110" />
+                        </a>
+                        <a
+                          href="https://twitter.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group relative rounded-lg p-2 text-muted-foreground transition-colors hover:text-accent-foreground"
+                        >
+                          <div className="absolute inset-0 rounded-lg bg-gradient-to-tr from-primary/10 via-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                          <TwitterIcon className="h-5 w-5 transition-transform group-hover:scale-110" />
+                        </a>
+                      </div>
                     </div>
-                  </main>
-                </div>
+                  </div>
+                </footer>
               </div>
-              
-              {/* PWA安装按钮 */}
-              <InstallPWA />
-              
-              {/* Toast通知 */}
-              <Toaster
-                position="top-right"
-                toastOptions={{
-                  duration: 3000,
-                  style: {
-                    background: 'var(--background)',
-                    color: 'var(--foreground)',
-                    border: '1px solid var(--border)',
-                  },
-                  success: {
-                    icon: '✅',
-                  },
-                  error: {
-                    icon: '❌',
-                  },
-                }}
-              />
-            </SocketProvider>
+            </div>
+            
+            {/* PWA安装按钮 */}
+            <InstallPWA />
+            
+            {/* Toast通知 */}
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                duration: 3000,
+                style: {
+                  background: 'var(--background)',
+                  color: 'var(--foreground)',
+                  border: '1px solid var(--border)',
+                },
+                success: {
+                  icon: '✅',
+                },
+                error: {
+                  icon: '❌',
+                },
+              }}
+            />
           </AuthProvider>
         </ThemeProvider>
       </body>
