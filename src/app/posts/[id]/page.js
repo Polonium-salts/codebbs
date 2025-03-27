@@ -17,7 +17,7 @@ async function getPost(id) {
       include: {
         author: { select: { id: true, name: true, image: true } },
         category: true,
-        _count: { select: { comments: true } }
+        _count: { select: { comments: true, likes: true } }
       }
     });
 

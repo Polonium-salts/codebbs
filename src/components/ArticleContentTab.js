@@ -4,6 +4,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { useState, useEffect } from 'react';
 import { useTheme } from 'next-themes';
 import BookmarkButton from './BookmarkButton';
+import LikeButton from './LikeButton';
+import ShareButton from './ShareButton';
 
 export default function ArticleContentTab({ post }) {
   const [fontSize, setFontSize] = useState('normal'); // small, normal, large
@@ -60,12 +62,11 @@ export default function ArticleContentTab({ post }) {
               postId={post.id} 
               className="inline-flex items-center gap-1 text-xs bg-background/80 dark:bg-gray-800 border dark:border-gray-700 border-gray-300 rounded-full px-2 py-1 hover:bg-accent/10 dark:hover:bg-gray-700 transition-colors"
             />
-            <button className="inline-flex items-center gap-1 text-xs bg-background/80 dark:bg-gray-800 border dark:border-gray-700 border-gray-300 rounded-full px-2 py-1 hover:bg-accent/10 dark:hover:bg-gray-700 transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 15v4c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2v-4M17 8l-5-5-5 5M12 3v16" />
-              </svg>
-              分享
-            </button>
+            <ShareButton 
+              title={post.title}
+              url={typeof window !== 'undefined' ? window.location.href : ''}
+              className="inline-flex items-center gap-1 text-xs bg-background/80 dark:bg-gray-800 border dark:border-gray-700 border-gray-300 rounded-full px-2 py-1 hover:bg-accent/10 dark:hover:bg-gray-700 transition-colors"
+            />
           </div>
         </div>
         <h1 className="text-2xl md:text-3xl font-bold leading-tight dark:text-white">{post.title}</h1>
@@ -161,20 +162,13 @@ export default function ArticleContentTab({ post }) {
         {/* 文章底部互动区域 */}
         <div className="flex justify-between items-center bg-card/20 dark:bg-gray-800/40 p-4 rounded-lg border dark:border-gray-700 border-gray-300">
           <div className="flex gap-3">
-            <button className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 dark:bg-primary/20 hover:bg-primary/20 dark:hover:bg-primary/30 transition-colors text-primary dark:text-primary-foreground">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M7 10v12" />
-                <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z" />
-              </svg>
-              点赞 (23)
-            </button>
+            <LikeButton postId={post.id} />
           </div>
-          <button className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border dark:border-gray-700 border-gray-300 hover:bg-accent/10 dark:hover:bg-gray-700 transition-colors dark:text-gray-200">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 15v4c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2v-4M17 8l-5-5-5 5M12 3v16" />
-            </svg>
-            分享
-          </button>
+          <ShareButton 
+            title={post.title}
+            url={typeof window !== 'undefined' ? window.location.href : ''}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border dark:border-gray-700 border-gray-300 hover:bg-accent/10 dark:hover:bg-gray-700 transition-colors dark:text-gray-200"
+          />
         </div>
       </div>
     </div>

@@ -5,9 +5,15 @@ import prisma from "@/lib/prisma";
 export async function GET() {
   try {
     const categories = await prisma.category.findMany({
-      orderBy: { name: "asc" },
       include: {
-        _count: { select: { posts: true } }
+        _count: {
+          select: {
+            posts: true
+          }
+        }
+      },
+      orderBy: {
+        updatedAt: 'desc'
       }
     });
     
@@ -15,7 +21,7 @@ export async function GET() {
   } catch (error) {
     console.error("获取分类列表出错:", error);
     return NextResponse.json(
-      { message: "获取分类列表时发生错误" },
+      { message: "获取分类列表失败" },
       { status: 500 }
     );
   }

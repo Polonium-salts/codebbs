@@ -5,7 +5,8 @@ import { useState, useEffect } from "react";
 import { getServerSession } from "next-auth";
 import { authOptions } from "./api/auth/[...nextauth]/route";
 import AuthProvider from "@/components/AuthProvider";
-import { ThemeProvider } from "@/components/ThemeProvider";
+import { ThemeProvider } from '@/components/ThemeProvider'
+import LanguageProvider from '@/components/LanguageProvider'
 import { SocketProvider } from "@/lib/socketClient";
 import { Sidebar } from "@/components/Sidebar";
 import Navbar from "@/components/Navbar";
@@ -13,9 +14,16 @@ import { InstallPWA } from "@/components/InstallPWA";
 import { Toaster } from "react-hot-toast";
 import { PageTransition } from "@/components/PageTransition";
 import { LoadingBar } from "@/components/LoadingBar";
+import { getUserLanguage } from "@/lib/languageUtils";
 
 export default function RootLayout({ children, session }) {
+  const [language, setLanguage] = useState('en');
+
   useEffect(() => {
+    // 获取当前语言
+    const userLang = getUserLanguage();
+    setLanguage(userLang);
+
     // 注册service worker
     if (typeof window !== 'undefined') {
       const script = document.createElement('script');
@@ -26,7 +34,7 @@ export default function RootLayout({ children, session }) {
   }, []);
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={language} suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -52,61 +60,68 @@ export default function RootLayout({ children, session }) {
         <link rel="shortcut icon" href="/icons/icon-72x72.png" />
       </head>
       <body className="min-h-screen bg-background font-sans antialiased selection:bg-primary/10">
-        <ThemeProvider defaultTheme="dark" enableSystem={false}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
           <AuthProvider session={session}>
-            <SocketProvider>
-              {/* 添加顶部加载进度条 */}
-              <LoadingBar />
-              
-              {/* Background gradients */}
-              <div className="fixed inset-0 -z-10 bg-background">
-                <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]" />
-                <div className="absolute left-0 right-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
-                <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
-              </div>
-              
-              <div className="relative flex min-h-screen">
-                {/* Sidebar - 保持静态不参与过渡动画 */}
-                <Sidebar />
+            <LanguageProvider>
+              <SocketProvider>
+                {/* 添加顶部加载进度条 */}
+                <LoadingBar />
                 
-                {/* 内容区域 - 应用过渡动画 */}
-                <div className="flex w-full flex-1 flex-col">
-                  {/* Navbar - 保持静态不参与过渡动画 */}
-                  <Navbar />
-                  
-                  {/* Main content - 应用过渡动画 */}
-                  <main className="flex-1">
-                    <div className="container py-6 lg:py-8 lg:pl-72">
-                      <PageTransition>
-                        {children}
-                      </PageTransition>
-                    </div>
-                  </main>
+                {/* Background gradients */}
+                <div className="fixed inset-0 -z-10 bg-background">
+                  <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]" />
+                  <div className="absolute left-0 right-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
+                  <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
                 </div>
-              </div>
-              
-              {/* PWA安装按钮 */}
-              <InstallPWA />
-              
-              {/* Toast通知 */}
-              <Toaster
-                position="top-right"
-                toastOptions={{
-                  duration: 3000,
-                  style: {
-                    background: 'var(--background)',
-                    color: 'var(--foreground)',
-                    border: '1px solid var(--border)',
-                  },
-                  success: {
-                    icon: '✅',
-                  },
-                  error: {
-                    icon: '❌',
-                  },
-                }}
-              />
-            </SocketProvider>
+                
+                <div className="relative flex min-h-screen">
+                  {/* Sidebar - 保持静态不参与过渡动画 */}
+                  <Sidebar />
+                  
+                  {/* 内容区域 - 应用过渡动画 */}
+                  <div className="flex w-full flex-1 flex-col">
+                    {/* Navbar - 保持静态不参与过渡动画 */}
+                    <Navbar />
+                    
+                    {/* Main content - 应用过渡动画 */}
+                    <main className="flex-1">
+                      <div className="container py-6 lg:py-8 lg:pl-72">
+                        <PageTransition>
+                          {children}
+                        </PageTransition>
+                      </div>
+                    </main>
+                  </div>
+                </div>
+                
+                {/* PWA安装按钮 */}
+                <InstallPWA />
+                
+                {/* Toast通知 */}
+                <Toaster
+                  position="top-right"
+                  toastOptions={{
+                    duration: 3000,
+                    style: {
+                      background: 'var(--background)',
+                      color: 'var(--foreground)',
+                      border: '1px solid var(--border)',
+                    },
+                    success: {
+                      icon: '✅',
+                    },
+                    error: {
+                      icon: '❌',
+                    },
+                  }}
+                />
+              </SocketProvider>
+            </LanguageProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

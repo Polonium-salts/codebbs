@@ -6,22 +6,25 @@ import { useSession, signIn, signOut } from "next-auth/react";
 import { useState, useEffect } from "react";
 import { FadeEffect } from "./FadeEffect";
 import { motion } from "framer-motion";
+import { useTranslation } from "./LanguageProvider";
 
 const navigation = [
-  { name: "首页", href: "/", icon: HomeIcon },
-  { name: "文章", href: "/posts", icon: DocumentIcon },
-  { name: "分类", href: "/categories", icon: FolderIcon },
-  { name: "消息", href: "/messages", icon: MessageSquareIcon },
-  { name: "个人主页", href: "/profile", icon: UserIcon },
+  { name: "sidebar.feed", href: "/", icon: HomeIcon },
+  { name: "common.posts", href: "/posts", icon: DocumentIcon },
+  { name: "categories.title", href: "/categories", icon: FolderIcon },
+  { name: "common.messages", href: "/messages", icon: MessageSquareIcon },
+  { name: "common.profile", href: "/profile", icon: UserIcon },
 ];
 
 const adminNavigation = [
-  { name: "管理后台", href: "/admin/dashboard", icon: LayoutDashboardIcon },
+  { name: "sidebar.dashboard", href: "/admin/dashboard", icon: LayoutDashboardIcon },
+  { name: "admin.languages", href: "/admin/languages", icon: GlobeIcon },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const { t } = useTranslation();
   const [userStats, setUserStats] = useState({
     following: 0,
     followers: 0,
@@ -60,7 +63,7 @@ export function Sidebar() {
       <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-border bg-card px-6 pb-4">
         <div className="flex h-16 shrink-0 items-center">
           <Link href="/" className="text-xl font-bold">
-            Forum App
+            {t('common.appName')}
           </Link>
         </div>
         {session && (
@@ -73,7 +76,7 @@ export function Sidebar() {
                       {session.user.image ? (
                         <img 
                           src={session.user.image} 
-                          alt={session.user.name || "用户"} 
+                          alt={session.user.name || t('user.profile')} 
                           className="h-full w-full object-cover"
                         />
                       ) : (
@@ -90,13 +93,13 @@ export function Sidebar() {
                   </div>
                   <div className="flex-1">
                     <h3 className="font-medium text-lg truncate">
-                      {session.user.name || "用户"}
+                      {session.user.name || t('user.profile')}
                     </h3>
                     <p className="text-xs text-muted-foreground truncate">
                       {session.user.email}
                     </p>
                     <Link href="/profile" className="text-xs text-primary hover:underline mt-1 inline-block">
-                      查看个人资料
+                      {t('user.profile')}
                     </Link>
                   </div>
                 </div>
@@ -106,19 +109,21 @@ export function Sidebar() {
                     <div className="font-semibold">
                       {loading ? "..." : userStats.following}
                     </div>
-                    <div className="text-xs text-muted-foreground">关注</div>
+                    <div className="text-xs text-muted-foreground">{t('user.following')}</div>
                   </Link>
                   <Link href="/follows" className="bg-background/60 rounded-md p-2 hover:bg-primary/10 transition-colors">
                     <div className="font-semibold">
                       {loading ? "..." : userStats.followers}
                     </div>
-                    <div className="text-xs text-muted-foreground">粉丝</div>
+                    <div className="text-xs text-muted-foreground">{t('user.followers')}</div>
                   </Link>
                   <div className="bg-background/60 rounded-md p-2">
                     <div className="font-semibold">
                       {loading ? "..." : userStats.likes}
                     </div>
-                    <div className="text-xs text-muted-foreground">获赞</div>
+                    <div className="text-xs text-muted-foreground">
+                      {t('common.likes', { count: 0 })}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -151,7 +156,7 @@ export function Sidebar() {
                       `}
                     >
                       <item.icon className="h-5 w-5 shrink-0 relative z-10" aria-hidden="true" />
-                      <span className="relative z-10">{item.name}</span>
+                      <span className="relative z-10">{t(item.name)}</span>
                     </Link>
                   </motion.li>
                 ))}
@@ -163,7 +168,7 @@ export function Sidebar() {
               <FadeEffect duration={0.4} delay={0.3}>
                 <li>
                   <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground pl-2 mb-2">
-                    管理选项
+                    {t('sidebar.administration')}
                   </div>
                   <ul role="list" className="-mx-2 space-y-1">
                     {adminNavigation.map((item, index) => (
@@ -188,7 +193,7 @@ export function Sidebar() {
                           `}
                         >
                           <item.icon className="h-5 w-5 shrink-0 relative z-10" aria-hidden="true" />
-                          <span className="relative z-10">{item.name}</span>
+                          <span className="relative z-10">{t(item.name)}</span>
                         </Link>
                       </motion.li>
                     ))}
@@ -207,7 +212,7 @@ export function Sidebar() {
                     >
                       <div className="absolute inset-0 rounded-md bg-gradient-to-tr from-primary/10 via-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                       <LogoutIcon className="h-5 w-5 mr-2 relative z-10" />
-                      <span className="relative z-10">退出登录</span>
+                      <span className="relative z-10">{t('common.signOut')}</span>
                     </button>
                   </div>
                 ) : (
@@ -218,7 +223,7 @@ export function Sidebar() {
                     >
                       <div className="absolute inset-0 rounded-md bg-gradient-to-tr from-primary/10 via-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                       <LoginIcon className="h-5 w-5 mr-2 relative z-10" />
-                      <span className="relative z-10">登录</span>
+                      <span className="relative z-10">{t('common.signIn')}</span>
                     </Link>
                     <Link
                       href="/register"
@@ -226,7 +231,7 @@ export function Sidebar() {
                     >
                       <div className="absolute inset-0 rounded-md bg-gradient-to-tr from-primary/10 via-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                       <UserPlusIcon className="h-5 w-5 mr-2 relative z-10" />
-                      <span className="relative z-10">注册</span>
+                      <span className="relative z-10">{t('auth.register')}</span>
                     </Link>
                   </div>
                 )}
@@ -444,6 +449,25 @@ function ImageIcon(props) {
       <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
       <circle cx="8.5" cy="8.5" r="1.5" />
       <polyline points="21 15 16 10 5 21" />
+    </svg>
+  );
+}
+
+function GlobeIcon(props) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <circle cx="12" cy="12" r="10" />
+      <line x1="2" y1="12" x2="22" y2="12" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
     </svg>
   );
 } 

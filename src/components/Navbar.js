@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { ThemeToggle } from "./ThemeToggle";
+import LanguageSwitcher from "./LanguageSwitcher";
+import { useTranslation } from "./LanguageProvider";
 
 export default function Navbar() {
   const { data: session } = useSession();
@@ -17,6 +19,7 @@ export default function Navbar() {
   const searchRef = useRef(null);
   const userMenuRef = useRef(null);
   const inputRef = useRef(null);
+  const { t } = useTranslation();
 
   // 处理搜索查询
   const handleSearch = async () => {
@@ -91,7 +94,7 @@ export default function Navbar() {
               <LogoIcon className="h-6 w-6 relative z-10" />
             </div>
             <span className="text-lg font-semibold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
-              Forum App
+              {t('common.appName')}
             </span>
           </Link>
         </div>
@@ -102,7 +105,7 @@ export default function Navbar() {
               <input
                 ref={inputRef}
                 type="text"
-                placeholder="搜索文章、用户..."
+                placeholder={t('common.search')}
                 className="w-full bg-background border border-border/50 rounded-md pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-transparent"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -126,7 +129,7 @@ export default function Navbar() {
                 {/* 帖子结果 */}
                 {searchResults.posts.length > 0 && (
                   <div className="p-3">
-                    <h3 className="text-sm font-medium text-muted-foreground mb-2">文章</h3>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-2">{t('common.articles')}</h3>
                     <div className="space-y-2">
                       {searchResults.posts.map(post => (
                         <Link
@@ -137,7 +140,7 @@ export default function Navbar() {
                         >
                           <div className="font-medium line-clamp-1">{post.title}</div>
                           <div className="text-xs text-muted-foreground flex items-center gap-2 mt-1">
-                            <span>by {post.author.name}</span>
+                            <span>{t('common.by')} {post.author.name}</span>
                             <span>•</span>
                             <span>{post.category.name}</span>
                           </div>
@@ -150,7 +153,7 @@ export default function Navbar() {
                         className="block text-center text-primary text-sm mt-2 hover:underline"
                         onClick={() => setShowResults(false)}
                       >
-                        查看更多结果
+                        {t('common.viewMore')}
                       </Link>
                     )}
                   </div>
@@ -159,7 +162,7 @@ export default function Navbar() {
                 {/* 用户结果 */}
                 {searchResults.users.length > 0 && (
                   <div className="p-3 border-t border-border/50">
-                    <h3 className="text-sm font-medium text-muted-foreground mb-2">用户</h3>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-2">{t('common.users')}</h3>
                     <div className="space-y-2">
                       {searchResults.users.map(user => (
                         <Link
@@ -190,7 +193,7 @@ export default function Navbar() {
                 {/* 无结果 */}
                 {searchResults.posts.length === 0 && searchResults.users.length === 0 && (
                   <div className="p-4 text-center text-muted-foreground">
-                    未找到与 "{searchResults.query}" 相关的内容
+                    {t('common.noResults', { query: searchResults.query })}
                   </div>
                 )}
               </div>
@@ -199,6 +202,7 @@ export default function Navbar() {
         </div>
 
         <div className="flex items-center space-x-4">
+          <LanguageSwitcher />
           <ThemeToggle />
           {session ? (
             <div className="flex items-center space-x-4">
@@ -227,7 +231,7 @@ export default function Navbar() {
                   <div className="absolute right-0 mt-2 w-56 bg-card rounded-md shadow-lg border border-border/50 overflow-hidden z-50">
                     <div className="p-2">
                       <div className="px-3 py-2 text-xs font-semibold text-muted-foreground">
-                        账户
+                        {t('common.account')}
                       </div>
                       <Link 
                         href={`/users/${session.user.id}`}
@@ -238,7 +242,7 @@ export default function Navbar() {
                           <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
                           <circle cx="12" cy="7" r="4" />
                         </svg>
-                        个人主页
+                        {t('common.profile')}
                       </Link>
                       <Link
                         href="/messages"
@@ -247,7 +251,7 @@ export default function Navbar() {
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 mr-2">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 0 1-.825-.242m9.345-8.334a2.126 2.126 0 0 0-.476-.095 48.64 48.64 0 0 0-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0 0 11.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
                         </svg>
-                        消息中心
+                        {t('common.messages')}
                       </Link>
                       <Link 
                         href="/follows"
@@ -260,7 +264,7 @@ export default function Navbar() {
                           <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
                           <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                         </svg>
-                        关注管理
+                        {t('common.follows')}
                       </Link>
                       <Link 
                         href="/bookmarks"
@@ -270,7 +274,7 @@ export default function Navbar() {
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
                         </svg>
-                        我的收藏
+                        {t('common.bookmarks')}
                       </Link>
                     </div>
                     <div className="border-t border-border/50 p-2">
@@ -286,7 +290,7 @@ export default function Navbar() {
                           <polyline points="16 17 21 12 16 7" />
                           <line x1="21" y1="12" x2="9" y2="12" />
                         </svg>
-                        退出登录
+                        {t('common.signOut')}
                       </button>
                     </div>
                   </div>
@@ -303,7 +307,7 @@ export default function Navbar() {
                 <polyline points="10 17 15 12 10 7" />
                 <line x1="15" y1="12" x2="3" y2="12" />
               </svg>
-              登录
+              {t('common.signIn')}
             </Link>
           )}
         </div>

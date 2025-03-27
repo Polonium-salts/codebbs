@@ -12,13 +12,11 @@ if ('serviceWorker' in navigator) {
 }
 
 // 添加安装提示
-let deferredPrompt;
-
 window.addEventListener('beforeinstallprompt', (e) => {
   // 阻止Chrome 67及更早版本自动显示安装提示
   e.preventDefault();
   // 保存事件，以便稍后触发
-  deferredPrompt = e;
+  window.deferredPrompt = e;
   // 更新UI通知用户可以安装PWA
   if (window.showInstallPromotion) {
     window.showInstallPromotion();
@@ -27,19 +25,19 @@ window.addEventListener('beforeinstallprompt', (e) => {
 
 // 导出安装函数，可以在应用中调用
 window.installPWA = () => {
-  if (!deferredPrompt) {
+  if (!window.deferredPrompt) {
     return;
   }
   // 显示安装提示
-  deferredPrompt.prompt();
+  window.deferredPrompt.prompt();
   // 等待用户响应提示
-  deferredPrompt.userChoice.then((choiceResult) => {
+  window.deferredPrompt.userChoice.then((choiceResult) => {
     if (choiceResult.outcome === 'accepted') {
       console.log('用户接受了安装提示');
     } else {
       console.log('用户拒绝了安装提示');
     }
     // 清除保存的提示，因为它只能使用一次
-    deferredPrompt = null;
+    window.deferredPrompt = null;
   });
 }; 

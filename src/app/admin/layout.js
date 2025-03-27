@@ -18,7 +18,8 @@ import {
   LogOut,
   Github,
   Puzzle,
-  Database
+  Database,
+  Globe
 } from 'lucide-react';
 
 // 管理员菜单项
@@ -28,6 +29,7 @@ const adminMenuItems = [
   { name: '评论管理', href: '/admin/comments', icon: MessageSquare },
   { name: '用户管理', href: '/admin/users', icon: Users },
   { name: '分类管理', href: '/admin/categories', icon: Tag },
+  { name: '语言管理', href: '/admin/languages', icon: Globe },
   { name: '数据统计', href: '/admin/stats', icon: BarChart },
   { name: '数据库管理', href: '/admin/database', icon: Database },
   { name: '插件管理', href: '/admin/plugins', icon: Puzzle },

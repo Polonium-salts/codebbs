@@ -142,3 +142,15 @@ model Message {
   sender        User?     @relation("MessageSender", fields: [senderId], references: [id], onDelete: SetNull)
   receiver      User      @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
 }
+
+model Language {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  flag        String?
+  isDefault   Boolean  @default(false)
+  isEnabled   Boolean  @default(true) 
+  content     String   // JSON content
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

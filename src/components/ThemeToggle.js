@@ -2,10 +2,12 @@
 
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
+import { useTranslation } from "./LanguageProvider";
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const { t } = useTranslation();
 
   useEffect(() => {
     setMounted(true);
@@ -18,7 +20,7 @@ export function ThemeToggle() {
         disabled
       >
         <div className="absolute inset-0 rounded-md bg-gradient-to-tr from-primary/10 to-accent/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-        <span className="sr-only">Toggle theme</span>
+        <span className="sr-only">{t('common.darkMode')}</span>
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"
@@ -39,10 +41,11 @@ export function ThemeToggle() {
     <button
       onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
       className="group relative inline-flex items-center justify-center rounded-md w-9 h-9 bg-transparent text-muted-foreground hover:text-accent-foreground"
-      aria-label="Toggle theme"
+      aria-label={theme === "dark" ? t('common.lightMode') : t('common.darkMode')}
+      title={theme === "dark" ? t('common.lightMode') : t('common.darkMode')}
     >
       <div className="absolute inset-0 rounded-md bg-gradient-to-tr from-primary/10 to-accent/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-      <span className="sr-only">Toggle theme</span>
+      <span className="sr-only">{theme === "dark" ? t('common.lightMode') : t('common.darkMode')}</span>
       {theme === "dark" ? (
         <svg
           xmlns="http://www.w3.org/2000/svg"
