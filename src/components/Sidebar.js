@@ -10,7 +10,6 @@ import { useTranslation } from "./LanguageProvider";
 
 const navigation = [
   { name: "sidebar.feed", href: "/", icon: HomeIcon },
-  { name: "common.posts", href: "/posts", icon: DocumentIcon },
   { name: "categories.title", href: "/categories", icon: FolderIcon },
   { name: "common.messages", href: "/messages", icon: MessageSquareIcon },
   { name: "common.profile", href: "/profile", icon: UserIcon },

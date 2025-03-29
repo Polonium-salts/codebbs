@@ -160,3 +160,27 @@ img, video {
     @apply relative before:absolute before:inset-0 before:rounded-lg before:p-[1px] before:bg-gradient-to-r before:from-primary/20 before:via-primary/40 before:to-primary/20 before:-z-10;
   }
 }
+
+@layer utilities {
+  /* iOS Safe Area utilities */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  .pr-safe {
+    padding-right: env(safe-area-inset-right);
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pl-safe {
+    padding-left: env(safe-area-inset-left);
+  }
+  .px-safe {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  .py-safe {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}

@@ -184,7 +184,14 @@ const AddPluginModal = ({ isOpen, onClose, onAdd }) => {
   
   const handleSubmit = (e) => {
     e.preventDefault();
-    onAdd(pluginData);
+    
+    // 确保描述有值，如果为空则使用默认描述
+    const submittedData = {...pluginData};
+    if (!submittedData.description || submittedData.description.trim() === '') {
+      submittedData.description = `${submittedData.displayName} 插件`;
+    }
+    
+    onAdd(submittedData);
   };
   
   if (!isOpen) return null;
@@ -214,6 +221,9 @@ const AddPluginModal = ({ isOpen, onClose, onAdd }) => {
                 placeholder="my-plugin"
                 required
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                仅允许小写字母、数字和连字符
+              </p>
             </div>
             
             <div>
@@ -236,9 +246,12 @@ const AddPluginModal = ({ isOpen, onClose, onAdd }) => {
                 value={pluginData.description}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-border rounded-md bg-background"
-                placeholder="插件功能描述..."
+                placeholder={`${pluginData.displayName || '插件'}的功能描述...`}
                 rows={3}
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                如未提供，将使用默认描述
+              </p>
             </div>
             
             <div className="grid grid-cols-2 gap-4">
@@ -279,23 +292,23 @@ const AddPluginModal = ({ isOpen, onClose, onAdd }) => {
                 required
               />
             </div>
-          </div>
-          
-          <div className="mt-6 flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-muted text-foreground rounded-md hover:bg-muted/80 transition-colors"
-            >
-              取消
-            </button>
             
-            <button
-              type="submit"
-              className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
-            >
-              创建
-            </button>
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 border border-border rounded-md text-muted-foreground hover:bg-muted"
+              >
+                取消
+              </button>
+              
+              <button
+                type="submit"
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+              >
+                创建插件
+              </button>
+            </div>
           </div>
         </form>
       </div>
@@ -385,33 +398,47 @@ const InstallPluginModal = ({ isOpen, onClose, onInstall }) => {
   );
 };
 
-// 配置插件模态框
+// 插件配置模态框
 const ConfigPluginModal = ({ isOpen, onClose, plugin, onSave }) => {
   const [configData, setConfigData] = useState({
     displayName: '',
     description: '',
     version: '',
     author: '',
+    homepage: '',
+    repository: '',
     main: '',
     enabled: false,
     config: '',
     hooks: ''
   });
   
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [errors, setErrors] = useState({
+    config: false,
+    hooks: false
+  });
   
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // 当插件数据变化时，更新表单数据
   useEffect(() => {
     if (plugin) {
       setConfigData({
         displayName: plugin.displayName || '',
         description: plugin.description || '',
-        version: plugin.version || '',
+        version: plugin.version || '1.0.0',
         author: plugin.author || '',
-        main: plugin.main || '',
+        homepage: plugin.homepage || '',
+        repository: plugin.repository || '',
+        main: plugin.main || 'index.js',
         enabled: plugin.enabled || false,
         config: plugin.config ? JSON.stringify(plugin.config, null, 2) : '',
         hooks: plugin.hooks ? JSON.stringify(plugin.hooks, null, 2) : ''
+      });
+      
+      setErrors({
+        config: false,
+        hooks: false
       });
     }
   }, [plugin]);
@@ -422,10 +449,19 @@ const ConfigPluginModal = ({ isOpen, onClose, plugin, onSave }) => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
+    
+    // 清除相关字段的错误
+    if (name === 'config' || name === 'hooks') {
+      setErrors(prev => ({
+        ...prev,
+        [name]: false
+      }));
+    }
   };
   
   const validateJson = (jsonString) => {
-    if (!jsonString) return true;
+    if (!jsonString.trim()) return true;
+    
     try {
       JSON.parse(jsonString);
       return true;
@@ -434,69 +470,62 @@ const ConfigPluginModal = ({ isOpen, onClose, plugin, onSave }) => {
     }
   };
   
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
     
-    // 验证JSON格式
-    if (!validateJson(configData.config)) {
-      setError('配置不是有效的JSON格式');
+    // 检查 JSON 字段格式
+    const configValid = validateJson(configData.config);
+    const hooksValid = validateJson(configData.hooks);
+    
+    setErrors({
+      config: !configValid,
+      hooks: !hooksValid
+    });
+    
+    if (!configValid || !hooksValid) {
       return;
     }
     
-    if (!validateJson(configData.hooks)) {
-      setError('钩子不是有效的JSON格式');
-      return;
+    // 确保描述字段有值
+    let submittedData = {...configData};
+    if (!submittedData.description || submittedData.description.trim() === '') {
+      submittedData.description = `${submittedData.displayName} 插件`;
     }
     
-    setIsLoading(true);
-    
+    // 将 JSON 字符串转换为对象
     const updatedPlugin = {
       ...plugin,
-      displayName: configData.displayName,
-      description: configData.description,
-      version: configData.version,
-      author: configData.author,
-      main: configData.main,
-      enabled: configData.enabled,
-      config: configData.config ? configData.config : null,
-      hooks: configData.hooks ? configData.hooks : null
+      ...submittedData,
+      config: submittedData.config ? JSON.parse(submittedData.config) : null,
+      hooks: submittedData.hooks ? JSON.parse(submittedData.hooks) : null
     };
     
-    onSave(updatedPlugin)
-      .finally(() => {
-        setIsLoading(false);
-      });
+    setIsLoading(true);
+    try {
+      await onSave(updatedPlugin);
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   if (!isOpen || !plugin) return null;
   
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50">
-      <div className="bg-background rounded-xl w-full max-w-2xl p-6 relative max-h-[90vh] overflow-y-auto">
+      <div className="bg-background rounded-xl w-full max-w-3xl p-6 relative max-h-[90vh] overflow-y-auto">
         <button 
           onClick={onClose} 
           className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
-          disabled={isLoading}
         >
           <X size={20} />
         </button>
         
         <h2 className="text-xl font-semibold mb-4 pr-8">
-          配置插件：{plugin.displayName}
+          配置插件: {plugin.displayName}
         </h2>
         
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-4 text-red-600 text-sm">
-            <p className="flex items-center gap-2">
-              <AlertCircle className="h-4 w-4" />
-              {error}
-            </p>
-          </div>
-        )}
-        
         <form onSubmit={handleSubmit}>
-          <div className="space-y-4">
+          <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1">显示名称</label>
@@ -511,15 +540,24 @@ const ConfigPluginModal = ({ isOpen, onClose, plugin, onSave }) => {
               </div>
               
               <div>
-                <label className="block text-sm font-medium mb-1">主入口文件</label>
-                <input
-                  type="text"
-                  name="main"
-                  value={configData.main}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-border rounded-md bg-background"
-                  required
-                />
+                <label className="block text-sm font-medium mb-1">
+                  状态
+                  <span className="ml-2 inline-block">
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        name="enabled"
+                        checked={configData.enabled}
+                        onChange={handleInputChange}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                      <span className="ml-2 text-sm font-medium">
+                        {configData.enabled ? '启用' : '禁用'}
+                      </span>
+                    </label>
+                  </span>
+                </label>
               </div>
             </div>
             
@@ -532,9 +570,12 @@ const ConfigPluginModal = ({ isOpen, onClose, plugin, onSave }) => {
                 className="w-full px-3 py-2 border border-border rounded-md bg-background"
                 rows={2}
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                如未提供，将使用默认描述
+              </p>
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1">版本</label>
                 <input
@@ -556,84 +597,119 @@ const ConfigPluginModal = ({ isOpen, onClose, plugin, onSave }) => {
                   className="w-full px-3 py-2 border border-border rounded-md bg-background"
                 />
               </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1">主入口文件</label>
+                <input
+                  type="text"
+                  name="main"
+                  value={configData.main}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-border rounded-md bg-background"
+                  required
+                />
+              </div>
             </div>
             
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="enabled"
-                name="enabled"
-                checked={configData.enabled}
-                onChange={handleInputChange}
-                className="h-4 w-4 text-primary border-border rounded"
-              />
-              <label htmlFor="enabled" className="ml-2 block text-sm">
-                启用插件
-              </label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">项目主页</label>
+                <input
+                  type="text"
+                  name="homepage"
+                  value={configData.homepage}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-border rounded-md bg-background"
+                  placeholder="https://..."
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1">代码仓库</label>
+                <input
+                  type="text"
+                  name="repository"
+                  value={configData.repository}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-border rounded-md bg-background"
+                  placeholder="https://github.com/..."
+                />
+              </div>
             </div>
             
             <div>
               <label className="block text-sm font-medium mb-1">
-                插件配置 (JSON格式)
+                配置 (JSON格式)
               </label>
               <textarea
                 name="config"
                 value={configData.config}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-border rounded-md bg-background font-mono text-sm"
+                className={`w-full px-3 py-2 border rounded-md bg-background font-mono text-sm ${
+                  errors.config ? 'border-red-500' : 'border-border'
+                }`}
                 rows={5}
                 placeholder="{}"
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                为插件提供的配置参数，JSON对象格式
-              </p>
+              {errors.config && (
+                <p className="text-red-500 text-xs mt-1">
+                  配置不是有效的JSON格式
+                </p>
+              )}
             </div>
             
             <div>
               <label className="block text-sm font-medium mb-1">
-                钩子配置 (JSON格式)
+                钩子 (JSON格式)
               </label>
               <textarea
                 name="hooks"
                 value={configData.hooks}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-border rounded-md bg-background font-mono text-sm"
+                className={`w-full px-3 py-2 border rounded-md bg-background font-mono text-sm ${
+                  errors.hooks ? 'border-red-500' : 'border-border'
+                }`}
                 rows={5}
-                placeholder='{"hookName": "methodName"}'
+                placeholder="{}"
               />
+              {errors.hooks && (
+                <p className="text-red-500 text-xs mt-1">
+                  钩子不是有效的JSON格式
+                </p>
+              )}
               <p className="text-xs text-muted-foreground mt-1">
-                钩子名称到插件方法的映射，格式为 {"{"}"钩子名": "方法名"{"}"}
+                格式: {"{'钩子名称': '处理函数名称'}"}
               </p>
             </div>
-          </div>
-          
-          <div className="mt-6 flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-muted text-foreground rounded-md hover:bg-muted/80 transition-colors"
-              disabled={isLoading}
-            >
-              取消
-            </button>
             
-            <button
-              type="submit"
-              className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors flex items-center gap-2"
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="animate-spin" size={16} />
-                  <span>保存中...</span>
-                </>
-              ) : (
-                <>
-                  <Check size={16} />
-                  <span>保存</span>
-                </>
-              )}
-            </button>
+            <div className="flex justify-end gap-2 pt-4 border-t border-border">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 border border-border rounded-md text-muted-foreground hover:bg-muted"
+                disabled={isLoading}
+              >
+                取消
+              </button>
+              
+              <button
+                type="submit"
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 flex items-center gap-2"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>保存中...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check size={16} />
+                    <span>保存配置</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </form>
       </div>
@@ -891,34 +967,61 @@ export default function PluginsPage() {
   // 保存插件配置
   const handleSaveConfig = async (updatedPlugin) => {
     try {
-      setError(null);
+      setProcessingPlugin(updatedPlugin.name);
       
+      // 准备发送的数据
+      const pluginData = {
+        name: updatedPlugin.name,
+        displayName: updatedPlugin.displayName,
+        description: updatedPlugin.description,
+        version: updatedPlugin.version,
+        author: updatedPlugin.author,
+        homepage: updatedPlugin.homepage,
+        repository: updatedPlugin.repository,
+        main: updatedPlugin.main,
+        enabled: updatedPlugin.enabled,
+        config: updatedPlugin.config,
+        hooks: updatedPlugin.hooks
+      };
+      
+      // 发送请求
       const response = await fetch('/api/admin/plugins', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(updatedPlugin)
+        body: JSON.stringify(pluginData)
       });
       
-      if (response.ok) {
-        const data = await response.json();
-        
-        // 更新本地状态
-        setPlugins(plugins.map(p => 
-          p.id === updatedPlugin.id ? data.plugin : p
-        ));
-        
-        setConfigPlugin(null);
-        showMessage('插件配置已保存');
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.message || '保存插件配置失败');
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || '保存插件配置失败');
       }
+      
+      // 刷新插件列表
+      await fetchPlugins();
+      
+      // 关闭配置窗口
+      setConfigModalOpen(false);
+      setCurrentPlugin(null);
+      
+      // 显示成功消息
+      showMessage({
+        type: 'success',
+        text: '插件配置已保存'
+      });
+      
+      return data;
     } catch (error) {
-      console.error('保存插件配置出错:', error);
-      setError(error.message || '保存插件配置时发生错误');
+      console.error('保存插件配置时出错:', error);
+      showMessage({
+        type: 'error',
+        text: error.message || '保存配置失败，请检查控制台获取详细信息'
+      });
       throw error;
+    } finally {
+      setProcessingPlugin(null);
     }
   };
   

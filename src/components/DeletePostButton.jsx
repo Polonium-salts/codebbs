@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { useRouter } from 'next/navigation';
 
 export default function DeletePostButton({ postId }) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const router = useRouter();
   
   const handleDelete = async () => {
     try {
@@ -15,17 +18,25 @@ export default function DeletePostButton({ postId }) {
         method: 'DELETE',
       });
       
-      if (response.ok) {
-        // 删除成功，刷新页面以更新列表
-        window.location.reload();
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || data.message || '删除失败');
+      }
+      
+      // 删除成功，显示通知并刷新页面或重定向
+      toast.success('文章已成功删除');
+      
+      // 如果在文章详情页，则返回首页，否则刷新当前页面
+      if (window.location.pathname.includes(`/posts/${postId}`)) {
+        router.push('/');
       } else {
-        const data = await response.json();
-        alert(data.error || '删除失败，请重试');
-        setShowConfirm(false);
+        router.refresh();
       }
     } catch (error) {
       console.error('删除帖子时出错:', error);
-      alert('删除帖子时发生错误，请重试');
+      toast.error(error.message || '删除帖子时发生错误，请稍后再试');
+      setShowConfirm(false);
     } finally {
       setIsDeleting(false);
     }
@@ -57,7 +68,17 @@ export default function DeletePostButton({ postId }) {
               className="px-3 py-1 text-xs bg-red-500 text-white hover:bg-red-600 rounded-md transition-colors flex items-center gap-1"
               disabled={isDeleting}
             >
-              {isDeleting ? '删除中...' : '确认删除'}
+              {isDeleting ? (
+                <>
+                  <Loader2 size={12} className="animate-spin" />
+                  <span>删除中...</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 size={12} />
+                  <span>确认删除</span>
+                </>
+              )}
             </button>
           </div>
         </div>

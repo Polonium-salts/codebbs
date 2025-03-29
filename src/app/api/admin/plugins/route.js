@@ -162,6 +162,11 @@ export async function PUT(req) {
       );
     }
     
+    // 确保 description 字段始终有值，不会是 null
+    if (!pluginData.description || pluginData.description.trim() === '') {
+      pluginData.description = `${pluginData.displayName} 插件`;
+    }
+    
     // 检查配置和钩子是否为有效的JSON
     let config = null;
     let hooks = null;
@@ -211,7 +216,7 @@ export async function PUT(req) {
       },
       update: {
         displayName: pluginData.displayName,
-        description: pluginData.description || null,
+        description: pluginData.description,
         version: pluginData.version || '1.0.0',
         author: pluginData.author || null,
         homepage: pluginData.homepage || null,
@@ -224,7 +229,7 @@ export async function PUT(req) {
       create: {
         name: pluginData.name,
         displayName: pluginData.displayName,
-        description: pluginData.description || null,
+        description: pluginData.description,
         version: pluginData.version || '1.0.0',
         author: pluginData.author || null,
         homepage: pluginData.homepage || null,

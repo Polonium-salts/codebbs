@@ -78,8 +78,9 @@ export class PluginManager {
       const mainFile = path.join(pluginDir, plugin.main);
       
       try {
-        // 动态导入插件模块
-        const pluginModule = await import(`file://${mainFile}`);
+        // 动态导入插件模块 - 使用相对路径而不是 file:// 协议
+        // 对于 Node.js 环境，直接使用路径导入而不是 file:// URL
+        const pluginModule = await import(mainFile);
         const pluginExport = pluginModule.default || pluginModule;
         
         if (!pluginExport || typeof pluginExport.initialize !== 'function') {

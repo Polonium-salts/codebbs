@@ -10,7 +10,7 @@ import LanguageProvider from '@/components/LanguageProvider'
 import { SocketProvider } from "@/lib/socketClient";
 import { Sidebar } from "@/components/Sidebar";
 import Navbar from "@/components/Navbar";
-import { InstallPWA } from "@/components/InstallPWA";
+import { MobileNavbar } from "@/components/MobileNavbar";
 import { Toaster } from "react-hot-toast";
 import { PageTransition } from "@/components/PageTransition";
 import { LoadingBar } from "@/components/LoadingBar";
@@ -62,7 +62,7 @@ const MainContent = memo(({ children, siteSettings }) => (
   <div className="flex w-full flex-1 flex-col">
     <Navbar siteSettings={siteSettings} />
     <main className="flex-1">
-      <div className="container py-6 lg:py-8 lg:pl-72">
+      <div className="container py-6 pb-24 lg:py-8 lg:pb-8 lg:pl-72">
         <PageTransition>
           {children}
         </PageTransition>
@@ -179,6 +179,9 @@ export default function RootLayout({ children, session }) {
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
         
+        {/* Viewport settings for mobile devices */}
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+        
         {/* 网站元数据 */}
         <meta name="application-name" content={settings.siteName || "Forum App"} />
         <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -230,10 +233,10 @@ export default function RootLayout({ children, session }) {
                   <MainContent siteSettings={settings}>
                     {children}
                   </MainContent>
+                  
+                  {/* Mobile bottom navigation */}
+                  <MobileNavbar />
                 </div>
-                
-                {/* PWA安装按钮 */}
-                <InstallPWA />
                 
                 {/* Toast通知 */}
                 <Toaster

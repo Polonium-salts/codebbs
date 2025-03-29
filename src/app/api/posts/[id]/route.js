@@ -2,15 +2,17 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import prisma from '@/lib/prisma';
-import { getCachedPost } from '@/lib/cache';
+import { getCachedPost, clearPostCache } from '@/lib/cache';
 
 // 删除帖子
 export async function DELETE(request, { params }) {
   try {
+    console.log('正在处理删除帖子请求:', params.id);
     const session = await getServerSession(authOptions);
     
     // 检查用户是否已登录
     if (!session || !session.user) {
+      console.log('删除失败: 未登录用户');
       return NextResponse.json(
         { error: '请先登录再执行此操作' },
         { status: 401 }
@@ -18,6 +20,7 @@ export async function DELETE(request, { params }) {
     }
     
     const postId = params.id;
+    console.log('当前用户:', session.user.id, '尝试删除帖子:', postId);
     
     // 获取帖子信息以检查权限
     const post = await prisma.post.findUnique({
@@ -27,6 +30,7 @@ export async function DELETE(request, { params }) {
     
     // 检查帖子是否存在
     if (!post) {
+      console.log('删除失败: 帖子不存在:', postId);
       return NextResponse.json(
         { error: '帖子不存在' },
         { status: 404 }
@@ -35,49 +39,69 @@ export async function DELETE(request, { params }) {
     
     // 检查用户是否有权限删除帖子（必须是帖子作者或管理员）
     if (post.authorId !== session.user.id && session.user.role !== 'ADMIN') {
+      console.log('删除失败: 权限不足。帖子作者:', post.authorId, '请求用户:', session.user.id, '用户角色:', session.user.role);
       return NextResponse.json(
         { error: '您没有权限删除此帖子' },
         { status: 403 }
       );
     }
     
-    // 删除帖子前，先删除相关的评论、点赞等
-    await prisma.$transaction([
-      // 删除帖子的评论的点赞
-      prisma.like.deleteMany({
-        where: {
-          comment: {
-            postId: postId
+    console.log('开始删除帖子相关数据...');
+    try {
+      // 删除帖子前，先删除相关的评论、点赞等
+      await prisma.$transaction([
+        // 删除帖子的评论的点赞
+        prisma.like.deleteMany({
+          where: {
+            comment: {
+              postId: postId
+            }
           }
-        }
-      }),
-      // 删除帖子的评论
-      prisma.comment.deleteMany({
-        where: { postId: postId }
-      }),
-      // 删除帖子的点赞
-      prisma.like.deleteMany({
-        where: { postId: postId }
-      }),
-      // 删除帖子的收藏
-      prisma.bookmark.deleteMany({
-        where: { postId: postId }
-      }),
-      // 最后删除帖子
-      prisma.post.delete({
-        where: { id: postId }
-      })
-    ]);
-    
-    return NextResponse.json(
-      { message: '帖子已成功删除' },
-      { status: 200 }
-    );
-    
+        }),
+        // 删除帖子的评论
+        prisma.comment.deleteMany({
+          where: { postId: postId }
+        }),
+        // 删除帖子的点赞
+        prisma.like.deleteMany({
+          where: { postId: postId }
+        }),
+        // 删除帖子的收藏
+        prisma.bookmark.deleteMany({
+          where: { postId: postId }
+        }),
+        // 最后删除帖子
+        prisma.post.delete({
+          where: { id: postId }
+        })
+      ]);
+      
+      console.log('数据库操作完成，正在清除缓存...');
+      // 清除该帖子的缓存
+      try {
+        clearPostCache(postId);
+        console.log('缓存清除成功');
+      } catch (cacheError) {
+        console.error('清除缓存时出错:', cacheError);
+        // 即使缓存清除失败，也继续返回成功，因为数据库操作已成功
+      }
+      
+      console.log('帖子删除成功:', postId);
+      return NextResponse.json(
+        { message: '帖子已成功删除' },
+        { status: 200 }
+      );
+    } catch (dbError) {
+      console.error('数据库操作失败:', dbError);
+      return NextResponse.json(
+        { error: '删除帖子时数据库操作失败', details: dbError.message },
+        { status: 500 }
+      );
+    }
   } catch (error) {
     console.error('删除帖子时出错:', error);
     return NextResponse.json(
-      { error: '删除帖子时发生错误' },
+      { error: '删除帖子时发生错误', details: error.message },
       { status: 500 }
     );
   }
@@ -162,6 +186,9 @@ export async function PUT(request, { params }) {
         category: true
       }
     });
+    
+    // 更新成功后，清除该帖子的缓存
+    clearPostCache(postId);
     
     return NextResponse.json({
       message: '帖子已成功更新',
