@@ -1,28 +1,29 @@
 "use client";
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, memo, useCallback } from 'react';
 import { Share, X, Copy, Check, Twitter, Facebook, Linkedin, Mail, QrCode } from 'lucide-react';
-import { generateQRCodeURL } from '@/lib/utils';
+import { generateQRCodeURL, throttle } from '@/lib/utils';
 
-export default function ShareButton({ title, url, className }) {
+export default memo(function ShareButton({ title, url, className }) {
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
   const shareMenuRef = useRef(null);
   
   // 使用当前页面 URL 如果没有提供
   const shareUrl = url || (typeof window !== 'undefined' ? window.location.href : '');
-  const shareTitle = title || document.title;
+  const shareTitle = title || (typeof document !== 'undefined' ? document.title : '');
   
-  // 处理点击事件
-  const handleShare = (e) => {
+  // 处理点击事件 - 使用useCallback减少重新创建函数
+  const handleShare = useCallback((e) => {
     e.stopPropagation();
     setIsOpen(!isOpen);
     setShowQR(false); // 重置QR码状态
-  };
+  }, [isOpen]);
   
   // 复制链接到剪贴板
-  const copyToClipboard = () => {
+  const copyToClipboard = useCallback(() => {
     navigator.clipboard.writeText(shareUrl).then(
       () => {
         setCopied(true);
@@ -32,7 +33,14 @@ export default function ShareButton({ title, url, className }) {
         console.error('无法复制: ', err);
       }
     );
-  };
+  }, [shareUrl]);
+  
+  // 懒加载QR码
+  useEffect(() => {
+    if (showQR && !qrCodeUrl) {
+      setQrCodeUrl(generateQRCodeURL(shareUrl));
+    }
+  }, [showQR, qrCodeUrl, shareUrl]);
   
   // 关闭分享菜单的点击外部事件监听
   useEffect(() => {
@@ -52,30 +60,29 @@ export default function ShareButton({ title, url, className }) {
     };
   }, [isOpen]);
   
-  // 使用 Web Share API (如果可用)
-  const handleNativeShare = () => {
+  // 使用 Web Share API (如果可用) - 节流处理
+  const handleNativeShare = useCallback(throttle(() => {
     if (navigator.share) {
       navigator.share({
         title: shareTitle,
         url: shareUrl
       }).then(() => {
-        console.log('分享成功');
         logShare('NativeShare');
       }).catch((error) => {
-        console.log('分享失败', error);
+        console.error('分享失败', error);
       });
     } else {
       setIsOpen(true);
     }
-  };
+  }, 500), [shareTitle, shareUrl]);
   
   // 切换显示QR码
-  const toggleQRCode = () => {
+  const toggleQRCode = useCallback(() => {
     setShowQR(!showQR);
-  };
+  }, [showQR]);
   
-  // 记录分享统计
-  const logShare = async (platform) => {
+  // 记录分享统计 - 使用节流减少API调用
+  const logShare = useCallback(throttle(async (platform) => {
     try {
       const postId = shareUrl.split('/').pop().split('?')[0];
       
@@ -94,13 +101,13 @@ export default function ShareButton({ title, url, className }) {
     } catch (error) {
       console.error('记录分享统计失败:', error);
     }
-  };
+  }, 500), [shareUrl]);
   
   // 处理社交媒体分享
-  const handleSocialShare = (platform) => {
+  const handleSocialShare = useCallback((platform) => {
     logShare(platform);
     setIsOpen(false);
-  };
+  }, [logShare]);
   
   return (
     <div className="relative" ref={shareMenuRef}>
@@ -133,11 +140,18 @@ export default function ShareButton({ title, url, className }) {
           {showQR ? (
             <div className="flex flex-col items-center p-2">
               <div className="bg-white p-2 rounded-md mb-2">
-                <img 
-                  src={generateQRCodeURL(shareUrl)}
-                  alt="QR Code"
-                  className="w-[150px] h-[150px]"
-                />
+                {qrCodeUrl ? (
+                  <img 
+                    src={qrCodeUrl}
+                    alt="QR Code"
+                    className="w-[150px] h-[150px]"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="w-[150px] h-[150px] flex items-center justify-center bg-gray-100">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  </div>
+                )}
               </div>
               <p className="text-xs text-center text-muted-foreground mt-1 mb-3">
                 扫描二维码在移动设备上查看
@@ -227,4 +241,4 @@ export default function ShareButton({ title, url, className }) {
       )}
     </div>
   );
-} 
+}); 

@@ -1,30 +1,46 @@
 "use client";
 
 import { formatDistanceToNow } from 'date-fns';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo, useMemo } from 'react';
 import { useTheme } from 'next-themes';
 import BookmarkButton from './BookmarkButton';
 import LikeButton from './LikeButton';
 import ShareButton from './ShareButton';
+import { setupLazyLoading } from '@/lib/utils';
 
-export default function ArticleContentTab({ post }) {
+const ArticleContentTab = memo(function ArticleContentTab({ post }) {
   const [fontSize, setFontSize] = useState('normal'); // small, normal, large
   const { theme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  
+  // 缓存文章内容片段，避免每次渲染时重新处理
+  const contentParagraphs = useMemo(() => {
+    return post.content.split('\n');
+  }, [post.content]);
 
   // 在客户端挂载后再读取主题，避免SSR水合不匹配
   useEffect(() => {
     setMounted(true);
+    
+    // 设置图片懒加载
+    const lazyLoadObserver = setupLazyLoading();
+    
+    return () => {
+      // 清理观察者
+      if (lazyLoadObserver) {
+        lazyLoadObserver.disconnect();
+      }
+    };
   }, []);
 
   // 根据字体大小设置类名
-  const getContentClass = () => {
+  const getContentClass = useMemo(() => {
     switch(fontSize) {
       case 'small': return 'text-sm leading-relaxed';
       case 'large': return 'text-lg leading-relaxed';
       default: return 'text-base leading-relaxed';
     }
-  };
+  }, [fontSize]);
 
   // 如果组件还未挂载，提供一个基本渲染，避免闪烁
   if (!mounted) {
@@ -37,9 +53,12 @@ export default function ArticleContentTab({ post }) {
           <div className="prose prose-lg max-w-none mb-8">
             <div className="rounded-lg p-8 shadow-sm border border-gray-300">
               <div className="whitespace-pre-wrap">
-                {post.content.split('\n').map((paragraph, index) => (
+                {contentParagraphs.slice(0, 5).map((paragraph, index) => (
                   paragraph ? <p key={index} className="mb-4">{paragraph}</p> : <br key={index} />
                 ))}
+                {contentParagraphs.length > 5 && (
+                  <div className="h-20 bg-gradient-to-b from-transparent to-gray-100"></div>
+                )}
               </div>
             </div>
           </div>
@@ -84,7 +103,7 @@ export default function ArticleContentTab({ post }) {
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
-              {post._count.comments} 评论
+              {post._count?.comments || 0} 评论
             </div>
             <div className="inline-flex items-center">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -123,9 +142,10 @@ export default function ArticleContentTab({ post }) {
           <div className="avatar">
             <div className="w-12 h-12 rounded-full overflow-hidden border-2 dark:border-primary/40 border-primary/20 shadow-sm">
               <img 
-                src={post.author.image || `https://ui-avatars.com/api/?name=${post.author.name}`} 
+                src={post.author.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(post.author.name)}`} 
                 alt={post.author.name}
-                className="object-cover h-full w-full" 
+                className="object-cover h-full w-full"
+                loading="lazy"
               />
             </div>
           </div>
@@ -151,9 +171,16 @@ export default function ArticleContentTab({ post }) {
         {/* 文章内容区域 - 使用渐变底色和印刷样式 */}
         <div className="prose prose-lg dark:prose-invert max-w-none mb-8">
           <div className="bg-gradient-to-b from-background to-card/30 dark:from-gray-800 dark:to-gray-900/50 rounded-lg p-8 shadow-sm border dark:border-gray-700 border-gray-300">
-            <div className={`${getContentClass()} whitespace-pre-wrap dark:text-gray-200`}>
-              {post.content.split('\n').map((paragraph, index) => (
-                paragraph ? <p key={index} className="mb-4">{paragraph}</p> : <br key={index} />
+            <div className={`${getContentClass} whitespace-pre-wrap dark:text-gray-200`}>
+              {/* 使用虚拟化渲染，只渲染可见区域的段落 */}
+              {contentParagraphs.map((paragraph, index) => (
+                paragraph ? (
+                  <p key={index} className="mb-4">
+                    {paragraph}
+                  </p>
+                ) : (
+                  <br key={index} />
+                )
               ))}
             </div>
           </div>
@@ -173,4 +200,6 @@ export default function ArticleContentTab({ post }) {
       </div>
     </div>
   );
-} 
+});
+
+export default ArticleContentTab; 

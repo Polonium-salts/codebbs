@@ -18,10 +18,9 @@ const navigation = [
 
 const adminNavigation = [
   { name: "sidebar.dashboard", href: "/admin/dashboard", icon: LayoutDashboardIcon },
-  { name: "admin.languages", href: "/admin/languages", icon: GlobeIcon },
 ];
 
-export function Sidebar() {
+export function Sidebar({ siteSettings }) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const { t } = useTranslation();
@@ -31,6 +30,9 @@ export function Sidebar() {
     likes: 0
   });
   const [loading, setLoading] = useState(false);
+
+  // 获取显示的网站名称（优先使用headerTitle，如果未设置则使用siteName）
+  const displaySiteName = siteSettings?.headerTitle || siteSettings?.siteName || t('common.appName');
 
   // 当用户登录后，获取统计数据
   useEffect(() => {
@@ -63,7 +65,7 @@ export function Sidebar() {
       <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-border bg-card px-6 pb-4">
         <div className="flex h-16 shrink-0 items-center">
           <Link href="/" className="text-xl font-bold">
-            {t('common.appName')}
+            {displaySiteName}
           </Link>
         </div>
         {session && (
@@ -468,6 +470,24 @@ function GlobeIcon(props) {
       <circle cx="12" cy="12" r="10" />
       <line x1="2" y1="12" x2="22" y2="12" />
       <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </svg>
+  );
+}
+
+function SettingsIcon(props) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+      <circle cx="12" cy="12" r="3"></circle>
     </svg>
   );
 } 

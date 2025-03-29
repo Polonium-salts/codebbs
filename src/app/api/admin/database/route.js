@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { dbOptimizer } from '@/lib/dbOptimizer';
 
 const execAsync = promisify(exec);
 
@@ -16,7 +17,6 @@ export async function GET(request) {
     let session;
     try {
       session = await getServerSession(authOptions);
-      console.log("用户会话:", session);
     } catch (e) {
       console.error("获取会话出错:", e);
       return NextResponse.json(
@@ -66,6 +66,14 @@ export async function GET(request) {
           { status: 500 }
         );
       }
+    } else if (searchParams.get('performance') === 'true') {
+      // 返回性能分析数据
+      const performanceData = await dbOptimizer.analyzePerformance();
+      return NextResponse.json(performanceData);
+    } else if (searchParams.get('indexes') === 'true') {
+      // 返回索引分析数据
+      const indexData = await dbOptimizer.optimizeIndexes();
+      return NextResponse.json(indexData);
     }
     
     // 获取数据库文件路径
@@ -80,7 +88,7 @@ export async function GET(request) {
       console.error('获取数据库大小失败:', err);
     }
     
-    // 获取数据表记录数
+    // 获取数据表记录数 - 使用Promise.all提高性能
     const [
       userCount,
       postCount,
@@ -142,33 +150,18 @@ export async function POST(request) {
     }
     
     const data = await request.json();
-    const { action, backupId } = data;
+    const { action, backupId, daysOld } = data;
     
     if (action === 'backup') {
-      // 创建备份目录
-      const backupDir = path.resolve('./backups');
-      if (!fs.existsSync(backupDir)) {
-        fs.mkdirSync(backupDir, { recursive: true });
-      }
-      
-      // 生成备份文件名
-      const date = new Date().toISOString().replace(/[:.]/g, '-');
-      const backupPath = path.join(backupDir, `backup-${date}.db`);
-      
-      // 复制数据库文件
-      fs.copyFileSync(path.resolve('./prisma/dev.db'), backupPath);
-      
-      return NextResponse.json({
-        success: true,
-        message: '数据库备份成功',
-        backupPath,
-        backupTime: new Date().toISOString()
-      });
+      // 使用优化器创建备份
+      const result = await dbOptimizer.createBackup();
+      return NextResponse.json(result);
     } else if (action === 'restore' && backupId) {
-      // 验证备份文件存在
+      // 恢复备份
       const backupDir = path.resolve('./backups');
       const backupFile = `backup-${backupId}.db`;
       const backupPath = path.join(backupDir, backupFile);
+      const dbPath = path.resolve('./prisma/dev.db');
       
       if (!fs.existsSync(backupPath)) {
         return NextResponse.json(
@@ -177,45 +170,40 @@ export async function POST(request) {
         );
       }
       
-      // 断开数据库连接
-      await prisma.$disconnect();
-      
       try {
-        // 备份当前数据库（以防还原失败)
-        const currentDbPath = path.resolve('./prisma/dev.db');
-        const tempBackupPath = path.join(backupDir, `pre-restore-${new Date().toISOString().replace(/[:.]/g, '-')}.db`);
-        fs.copyFileSync(currentDbPath, tempBackupPath);
+        // 在恢复前创建当前数据库的临时备份
+        const tempBackupDate = 'pre-restore-' + new Date().toISOString().replace(/[:.]/g, '-');
+        const tempBackupPath = path.join(backupDir, `backup-${tempBackupDate}.db`);
+        fs.copyFileSync(dbPath, tempBackupPath);
         
-        // 复制备份文件到数据库位置
-        fs.copyFileSync(backupPath, currentDbPath);
+        // 断开所有数据库连接
+        await prisma.$disconnect();
+        
+        // 将备份文件复制到数据库位置
+        fs.copyFileSync(backupPath, dbPath);
         
         return NextResponse.json({
           success: true,
-          message: '数据库已成功从备份还原',
-          restoredFrom: backupFile
+          message: '备份已成功恢复',
+          restoredBackup: backupFile,
+          tempBackup: tempBackupPath
         });
       } catch (error) {
-        console.error('还原数据库出错:', error);
+        console.error('恢复备份出错:', error);
         return NextResponse.json(
-          { message: '还原数据库时发生错误: ' + error.message },
+          { message: '恢复备份时发生错误: ' + error.message },
           { status: 500 }
         );
       }
     } else if (action === 'vacuum') {
-      // 执行SQLite VACUUM操作
-      try {
-        await prisma.$executeRawUnsafe('VACUUM;');
-        return NextResponse.json({
-          success: true,
-          message: '数据库已成功压缩优化'
-        });
-      } catch (error) {
-        console.error('执行VACUUM出错:', error);
-        return NextResponse.json(
-          { message: '数据库压缩优化失败' },
-          { status: 500 }
-        );
-      }
+      // 执行数据库优化
+      const result = await dbOptimizer.vacuum();
+      return NextResponse.json(result);
+    } else if (action === 'cleanup') {
+      // 执行数据清理
+      const days = daysOld || 90; // 默认清理90天前的数据
+      const result = await dbOptimizer.cleanupData(days);
+      return NextResponse.json(result);
     } else if (action === 'delete_backup' && backupId) {
       // 删除指定备份
       const backupDir = path.resolve('./backups');
@@ -243,6 +231,10 @@ export async function POST(request) {
           { status: 500 }
         );
       }
+    } else if (action === 'optimize_indexes') {
+      // 优化数据库索引
+      const result = await dbOptimizer.optimizeIndexes();
+      return NextResponse.json(result);
     }
     
     return NextResponse.json(
@@ -269,7 +261,7 @@ function formatFileSize(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-// 获取最后备份信息
+// 获取最后一次备份信息
 function getLastBackupInfo() {
   try {
     const backupDir = path.resolve('./backups');
@@ -284,22 +276,19 @@ function getLastBackupInfo() {
         const stats = fs.statSync(filePath);
         return {
           file,
-          path: filePath,
-          size: stats.size,
-          sizeFormatted: formatFileSize(stats.size),
-          createdAt: stats.birthtime
+          date: stats.birthtime
         };
       })
-      .sort((a, b) => b.createdAt - a.createdAt);
+      .sort((a, b) => b.date - a.date);
     
     return backupFiles.length > 0 ? backupFiles[0] : null;
   } catch (error) {
-    console.error('获取备份信息出错:', error);
+    console.error('获取最后一次备份信息出错:', error);
     return null;
   }
 }
 
-// 获取备份总数
+// 获取备份数量
 function getBackupsCount() {
   try {
     const backupDir = path.resolve('./backups');
@@ -307,12 +296,11 @@ function getBackupsCount() {
       return 0;
     }
     
-    const backupFiles = fs.readdirSync(backupDir)
-      .filter(file => file.startsWith('backup-') && file.endsWith('.db'));
-    
-    return backupFiles.length;
+    return fs.readdirSync(backupDir)
+      .filter(file => file.startsWith('backup-') && file.endsWith('.db'))
+      .length;
   } catch (error) {
-    console.error('获取备份总数出错:', error);
+    console.error('获取备份数量出错:', error);
     return 0;
   }
 } 

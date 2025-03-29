@@ -2,13 +2,61 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, memo } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { ThemeToggle } from "./ThemeToggle";
 import LanguageSwitcher from "./LanguageSwitcher";
 import { useTranslation } from "./LanguageProvider";
 
-export default function Navbar() {
+// 使用memo优化子组件
+const ThemeToggleContainer = memo(function ThemeToggleContainer() {
+  return (
+    <div className="p-1 rounded-md bg-secondary/50 backdrop-blur-sm dark:bg-secondary/30">
+      <ThemeToggle />
+    </div>
+  );
+});
+
+// 使用memo优化搜索图标
+const SearchIcon = memo(function SearchIcon(props) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+  );
+});
+
+// 优化加载图标
+const LoadingSpinner = memo(function LoadingSpinner(props) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`animate-spin ${props.className || ""}`}
+      style={{ willChange: 'transform' }}
+      {...props}
+    >
+      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+    </svg>
+  );
+});
+
+export default function Navbar({ siteSettings }) {
   const { data: session } = useSession();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
@@ -19,9 +67,13 @@ export default function Navbar() {
   const searchRef = useRef(null);
   const userMenuRef = useRef(null);
   const inputRef = useRef(null);
+  const searchTimerRef = useRef(null);
   const { t } = useTranslation();
 
-  // 处理搜索查询
+  // 获取显示的网站名称（优先使用headerTitle，如果未设置则使用siteName）
+  const displaySiteName = siteSettings?.headerTitle || siteSettings?.siteName || t('common.appName');
+
+  // 优化搜索查询 - 使用useRef防止不必要的重新渲染
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
       setSearchResults(null);
@@ -42,18 +94,20 @@ export default function Navbar() {
     }
   };
 
-  // 搜索输入防抖
+  // 优化搜索防抖
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchQuery.trim()) {
+    clearTimeout(searchTimerRef.current);
+    
+    if (searchQuery.trim()) {
+      searchTimerRef.current = setTimeout(() => {
         handleSearch();
-      }
-    }, 300);
-
-    return () => clearTimeout(timer);
+      }, 250);
+    }
+    
+    return () => clearTimeout(searchTimerRef.current);
   }, [searchQuery]);
 
-  // 处理点击事件以关闭搜索结果和用户菜单
+  // 优化点击事件监听
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (searchRef.current && !searchRef.current.contains(event.target)) {
@@ -82,7 +136,7 @@ export default function Navbar() {
   return (
     <nav className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm supports-[backdrop-filter]:bg-background/60">
       {/* Top gradient banner */}
-      <div className="h-1.5 w-full bg-gradient-to-r from-primary via-purple-500 to-blue-500"></div>
+      <div className="h-1.5 w-full bg-gradient-to-r from-primary via-purple-500 to-blue-500" />
       
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
       <div className="absolute inset-x-0 -bottom-px h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
@@ -94,7 +148,7 @@ export default function Navbar() {
               <LogoIcon className="h-6 w-6 relative z-10" />
             </div>
             <span className="text-lg font-semibold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
-              {t('common.appName')}
+              {displaySiteName}
             </span>
           </Link>
         </div>
@@ -123,9 +177,9 @@ export default function Navbar() {
               </button>
             </form>
 
-            {/* 搜索结果下拉框 */}
+            {/* 搜索结果下拉框 - 使用固定高度避免布局偏移 */}
             {showResults && searchResults && (
-              <div className="absolute mt-1 w-full bg-card rounded-md shadow-lg border border-border/50 max-h-[70vh] overflow-y-auto z-50">
+              <div className="absolute mt-1 w-full bg-card rounded-md shadow-lg border border-border/50 max-h-[70vh] overflow-y-auto z-50 overscroll-contain">
                 {/* 帖子结果 */}
                 {searchResults.posts.length > 0 && (
                   <div className="p-3">
@@ -177,6 +231,7 @@ export default function Navbar() {
                                 src={user.image || `https://ui-avatars.com/api/?name=${user.name}`}
                                 alt={user.name}
                                 className="h-full w-full object-cover"
+                                loading="lazy"
                               />
                             </div>
                           </div>
@@ -203,7 +258,7 @@ export default function Navbar() {
 
         <div className="flex items-center space-x-4">
           <LanguageSwitcher />
-          <ThemeToggle />
+          <ThemeToggleContainer />
           {session ? (
             <div className="flex items-center space-x-4">
               <div 
@@ -246,9 +301,10 @@ export default function Navbar() {
                       </Link>
                       <Link
                         href="/messages"
-                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground rounded-md transition-colors"
+                        onClick={() => setShowUserMenu(false)}
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 mr-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 0 1-.825-.242m9.345-8.334a2.126 2.126 0 0 0-.476-.095 48.64 48.64 0 0 0-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0 0 11.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
                         </svg>
                         {t('common.messages')}
@@ -298,17 +354,12 @@ export default function Navbar() {
               </div>
             </div>
           ) : (
-            <Link
-              href="/auth/signin"
-              className="flex items-center gap-1 text-sm bg-primary/10 hover:bg-primary/20 text-primary px-3 py-1.5 rounded-md transition-colors"
+            <button
+              onClick={() => signIn()}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-                <polyline points="10 17 15 12 10 7" />
-                <line x1="15" y1="12" x2="3" y2="12" />
-              </svg>
-              {t('common.signIn')}
-            </Link>
+              {t('common.login')}
+            </button>
           )}
         </div>
       </div>
@@ -329,42 +380,6 @@ function LogoIcon(props) {
       {...props}
     >
       <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-    </svg>
-  );
-}
-
-function SearchIcon(props) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <circle cx="11" cy="11" r="8" />
-      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-    </svg>
-  );
-}
-
-function LoadingSpinner(props) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={`animate-spin ${props.className || ""}`}
-      {...props}
-    >
-      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
     </svg>
   );
 } 

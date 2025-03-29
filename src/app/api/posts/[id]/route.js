@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import prisma from '@/lib/prisma';
+import { getCachedPost } from '@/lib/cache';
 
 // 删除帖子
 export async function DELETE(request, { params }) {
@@ -171,6 +172,109 @@ export async function PUT(request, { params }) {
     console.error('更新帖子时出错:', error);
     return NextResponse.json(
       { error: '更新帖子时发生错误' },
+      { status: 500 }
+    );
+  }
+}
+
+// 获取特定ID的文章详情
+export async function GET(request, { params }) {
+  try {
+    const { id } = params;
+    const { searchParams } = new URL(request.url);
+    const skipViews = searchParams.get('skipViews') === 'true';
+
+    // 使用缓存获取文章
+    const post = await getCachedPost(id, async () => {
+      const session = await getServerSession(authOptions);
+      const userId = session?.user?.id;
+      
+      // 获取文章详情，包含作者、分类和评论数
+      const post = await prisma.post.findUnique({
+        where: {
+          id: id
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+              role: true
+            }
+          },
+          category: true,
+          _count: {
+            select: {
+              comments: true,
+              likes: true,
+              bookmarks: true
+            }
+          }
+        }
+      });
+      
+      if (!post) {
+        return null;
+      }
+      
+      // 如果用户已登录，检查用户是否已点赞和收藏
+      let userLiked = false;
+      let userBookmarked = false;
+      
+      if (userId) {
+        // 查找用户是否已点赞此文章
+        const like = await prisma.like.findFirst({
+          where: {
+            userId: userId,
+            postId: id,
+            commentId: null // 确保commentId为null而非undefined
+          }
+        });
+        
+        userLiked = !!like;
+        
+        // 查找用户是否已收藏此文章
+        const bookmark = await prisma.bookmark.findUnique({
+          where: {
+            userId_postId: {
+              userId: userId,
+              postId: id
+            }
+          }
+        });
+        
+        userBookmarked = !!bookmark;
+      }
+      
+      // 增加浏览量，除非明确跳过
+      if (!skipViews) {
+        await prisma.post.update({
+          where: { id: id },
+          data: { views: { increment: 1 } }
+        });
+      }
+      
+      return {
+        ...post,
+        userLiked,
+        userBookmarked
+      };
+    }, skipViews);
+    
+    if (!post) {
+      return NextResponse.json(
+        { message: '文章不存在或已被删除' },
+        { status: 404 }
+      );
+    }
+    
+    return NextResponse.json(post);
+  } catch (error) {
+    console.error('获取文章详情出错:', error);
+    return NextResponse.json(
+      { message: '获取文章详情失败', error: error.message },
       { status: 500 }
     );
   }

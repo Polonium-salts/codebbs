@@ -109,9 +109,12 @@ model Bookmark {
 }
 
 model Setting {
-  key   String @id
-  value String
-  type  String
+  key       String
+  value     String
+  type      String
+  valueType String @default("string")
+  
+  @@id([key, type])
 }
 
 model Plugin {

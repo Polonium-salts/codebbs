@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Settings, 
   Save, 
@@ -17,7 +17,13 @@ import {
   Shield,
   Sliders,
   Check,
-  Github
+  Github,
+  Database,
+  Zap,
+  Lock,
+  ServerCrash,
+  AlertCircle,
+  X
 } from 'lucide-react';
 
 // 设置项组件
@@ -85,7 +91,33 @@ export default function SettingsPage() {
     emailNotifications: true,
     maintenanceMode: false,
     githubRepo: '',
-    githubBranch: 'main'
+    githubBranch: 'main',
+    enableImageOptimization: true,
+    enablePageCaching: true,
+    minifyAssets: true,
+    compressionLevel: 'high',
+    enableCaptcha: false,
+    reCaptchaSiteKey: '',
+    reCaptchaSecretKey: '',
+    maxLoginAttempts: 5,
+    passwordMinLength: 8,
+    enableTwoFactor: false,
+    enableContentSecurity: true,
+    enableApiAccess: false,
+    apiRateLimit: 60,
+    allowCors: false,
+    allowedOrigins: '',
+    autoBackupEnabled: false,
+    backupFrequency: 'daily',
+    backupRetentionDays: 7,
+    backupTime: '03:00',
+    headerTitle: '',
+    enableAnnouncement: false,
+    announcementText: '',
+    announcementBgColor: '#f3f4f6',
+    announcementTextColor: '#374151',
+    announcementStartDate: '',
+    announcementEndDate: ''
   });
   
   const [isLoading, setIsLoading] = useState(true);
@@ -94,8 +126,11 @@ export default function SettingsPage() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
   
-  // 获取系统设置
+  const logoFileRef = useRef(null);
+  const faviconFileRef = useRef(null);
+  
   const fetchSettings = async () => {
     try {
       setIsLoading(true);
@@ -118,12 +153,10 @@ export default function SettingsPage() {
     }
   };
   
-  // 初始加载
   useEffect(() => {
     fetchSettings();
   }, []);
   
-  // 处理输入变化
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData(prev => ({
@@ -132,7 +165,6 @@ export default function SettingsPage() {
     }));
   };
   
-  // 处理开关变化
   const handleToggleChange = (name, value) => {
     setFormData(prev => ({
       ...prev,
@@ -140,7 +172,56 @@ export default function SettingsPage() {
     }));
   };
   
-  // 保存设置
+  const handleImageUpload = async (e, type) => {
+    e.preventDefault();
+    const fileRef = type === 'logo' ? logoFileRef : faviconFileRef;
+    
+    if (!fileRef.current.files || !fileRef.current.files[0]) {
+      return;
+    }
+    
+    const file = fileRef.current.files[0];
+    
+    if (!file.type.startsWith('image/')) {
+      setError('请上传图片文件');
+      return;
+    }
+    
+    if (file.size > 2 * 1024 * 1024) {
+      setError('图片大小不能超过2MB');
+      return;
+    }
+    
+    try {
+      setIsUploading(true);
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', type);
+      
+      const response = await fetch('/api/admin/upload', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setFormData(prev => ({
+          ...prev,
+          [type === 'logo' ? 'logoUrl' : 'faviconUrl']: data.url
+        }));
+      } else {
+        const errorData = await response.json();
+        setError(errorData.message || '上传图片失败');
+      }
+    } catch (error) {
+      console.error('上传图片出错:', error);
+      setError('上传图片时发生错误');
+    } finally {
+      setIsUploading(false);
+      fileRef.current.value = '';
+    }
+  };
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -160,7 +241,6 @@ export default function SettingsPage() {
       if (response.ok) {
         setSaveSuccess(true);
         
-        // 3秒后隐藏成功消息
         setTimeout(() => {
           setSaveSuccess(false);
         }, 3000);
@@ -176,7 +256,6 @@ export default function SettingsPage() {
     }
   };
   
-  // 从GitHub同步代码
   const syncFromGithub = async () => {
     if (!formData.githubRepo) {
       setError('请先设置GitHub仓库地址');
@@ -204,7 +283,6 @@ export default function SettingsPage() {
       if (response.ok) {
         setSyncMessage(data.message || '同步成功');
         
-        // 3秒后隐藏成功消息
         setTimeout(() => {
           setSyncMessage(null);
         }, 5000);
@@ -255,7 +333,6 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* 错误提示 */}
       {error && (
         <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-6 text-red-600">
           <p className="flex items-center gap-2">
@@ -269,7 +346,6 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* 保存成功提示 */}
       {saveSuccess && (
         <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-6 text-green-600">
           <p className="flex items-center gap-2">
@@ -286,7 +362,6 @@ export default function SettingsPage() {
         </div>
       ) : (
         <form id="settings-form" onSubmit={handleSubmit}>
-          {/* 网站基本信息 */}
           <SettingGroup icon={Globe} title="网站基本信息">
             <SettingItem 
               title="网站名称" 
@@ -300,6 +375,20 @@ export default function SettingsPage() {
                 className="w-full px-3 py-2 border border-border rounded-md bg-background"
                 placeholder="输入网站名称"
                 required
+              />
+            </SettingItem>
+            
+            <SettingItem 
+              title="网站顶部名称" 
+              description="显示在导航栏中的名称，留空则使用网站名称"
+            >
+              <input
+                type="text"
+                name="headerTitle"
+                value={formData.headerTitle}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-border rounded-md bg-background"
+                placeholder="输入网站顶部名称（可选）"
               />
             </SettingItem>
             
@@ -345,7 +434,112 @@ export default function SettingsPage() {
             </SettingItem>
           </SettingGroup>
           
-          {/* 网站外观 */}
+          <SettingGroup icon={AlertCircle} title="网站公告">
+            <SettingItem 
+              title="启用公告" 
+              description="在网站顶部显示一条全局公告"
+            >
+              <ToggleSwitch 
+                checked={formData.enableAnnouncement} 
+                onChange={(value) => handleToggleChange('enableAnnouncement', value)}
+              />
+            </SettingItem>
+            
+            {formData.enableAnnouncement && (
+              <>
+                <SettingItem 
+                  title="公告内容" 
+                  description="网站顶部显示的公告内容，支持简单HTML"
+                >
+                  <textarea
+                    name="announcementText"
+                    value={formData.announcementText}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-border rounded-md bg-background h-24"
+                    placeholder="输入公告内容"
+                    required={formData.enableAnnouncement}
+                  />
+                </SettingItem>
+                
+                <SettingItem 
+                  title="公告外观" 
+                  description="设置公告的背景颜色和文字颜色"
+                >
+                  <div className="flex flex-col gap-3">
+                    <div className="flex gap-4 items-center">
+                      <div className="flex gap-2 items-center">
+                        <label htmlFor="announcementBgColor" className="text-sm">背景颜色:</label>
+                        <input
+                          type="color"
+                          id="announcementBgColor"
+                          name="announcementBgColor"
+                          value={formData.announcementBgColor}
+                          onChange={handleInputChange}
+                          className="w-10 h-8 rounded border border-border cursor-pointer"
+                        />
+                      </div>
+                      
+                      <div className="flex gap-2 items-center">
+                        <label htmlFor="announcementTextColor" className="text-sm">文字颜色:</label>
+                        <input
+                          type="color"
+                          id="announcementTextColor"
+                          name="announcementTextColor"
+                          value={formData.announcementTextColor}
+                          onChange={handleInputChange}
+                          className="w-10 h-8 rounded border border-border cursor-pointer"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="mt-2 p-3 rounded-md" style={{
+                      backgroundColor: formData.announcementBgColor,
+                      color: formData.announcementTextColor
+                    }}>
+                      <div className="flex justify-between items-center">
+                        <div dangerouslySetInnerHTML={{ __html: formData.announcementText || '公告预览区域' }} />
+                        <X size={16} />
+                      </div>
+                    </div>
+                  </div>
+                </SettingItem>
+                
+                <SettingItem 
+                  title="公告时间范围" 
+                  description="设置公告显示的开始和结束时间，留空表示永久显示"
+                >
+                  <div className="flex flex-col gap-3">
+                    <div className="flex gap-4 items-center">
+                      <div className="flex flex-col gap-1">
+                        <label htmlFor="announcementStartDate" className="text-sm">开始日期:</label>
+                        <input
+                          type="datetime-local"
+                          id="announcementStartDate"
+                          name="announcementStartDate"
+                          value={formData.announcementStartDate}
+                          onChange={handleInputChange}
+                          className="px-3 py-2 border border-border rounded-md bg-background"
+                        />
+                      </div>
+                      
+                      <div className="flex flex-col gap-1">
+                        <label htmlFor="announcementEndDate" className="text-sm">结束日期:</label>
+                        <input
+                          type="datetime-local"
+                          id="announcementEndDate"
+                          name="announcementEndDate"
+                          value={formData.announcementEndDate}
+                          onChange={handleInputChange}
+                          className="px-3 py-2 border border-border rounded-md bg-background"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </SettingItem>
+              </>
+            )}
+          </SettingGroup>
+          
           <SettingGroup icon={Image} title="网站外观">
             <SettingItem 
               title="网站Logo" 
@@ -370,13 +564,28 @@ export default function SettingsPage() {
                     className="flex-grow px-3 py-2 border border-border rounded-md bg-background"
                     placeholder="输入Logo URL"
                   />
-                  <button
-                    type="button"
-                    className="px-3 py-2 bg-muted text-foreground rounded-md hover:bg-muted/80 transition-colors flex items-center gap-1"
-                  >
-                    <Upload size={16} />
-                    <span>上传</span>
-                  </button>
+                  <div className="relative">
+                    <input
+                      type="file"
+                      ref={logoFileRef}
+                      className="hidden"
+                      accept="image/*"
+                      onChange={(e) => handleImageUpload(e, 'logo')}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => logoFileRef.current?.click()}
+                      disabled={isUploading}
+                      className="px-3 py-2 bg-muted text-foreground rounded-md hover:bg-muted/80 transition-colors flex items-center gap-1"
+                    >
+                      {isUploading ? (
+                        <Loader2 className="animate-spin" size={16} />
+                      ) : (
+                        <Upload size={16} />
+                      )}
+                      <span>上传</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </SettingItem>
@@ -404,13 +613,28 @@ export default function SettingsPage() {
                     className="flex-grow px-3 py-2 border border-border rounded-md bg-background"
                     placeholder="输入Favicon URL"
                   />
-                  <button
-                    type="button"
-                    className="px-3 py-2 bg-muted text-foreground rounded-md hover:bg-muted/80 transition-colors flex items-center gap-1"
-                  >
-                    <Upload size={16} />
-                    <span>上传</span>
-                  </button>
+                  <div className="relative">
+                    <input
+                      type="file"
+                      ref={faviconFileRef}
+                      className="hidden"
+                      accept="image/*"
+                      onChange={(e) => handleImageUpload(e, 'favicon')}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => faviconFileRef.current?.click()}
+                      disabled={isUploading}
+                      className="px-3 py-2 bg-muted text-foreground rounded-md hover:bg-muted/80 transition-colors flex items-center gap-1"
+                    >
+                      {isUploading ? (
+                        <Loader2 className="animate-spin" size={16} />
+                      ) : (
+                        <Upload size={16} />
+                      )}
+                      <span>上传</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </SettingItem>
@@ -429,7 +653,6 @@ export default function SettingsPage() {
             </SettingItem>
           </SettingGroup>
           
-          {/* 内容设置 */}
           <SettingGroup icon={FileText} title="内容设置">
             <SettingItem 
               title="每页文章数" 
@@ -469,7 +692,6 @@ export default function SettingsPage() {
             </SettingItem>
           </SettingGroup>
           
-          {/* 用户设置 */}
           <SettingGroup icon={UserCog} title="用户设置">
             <SettingItem 
               title="允许注册" 
@@ -482,7 +704,6 @@ export default function SettingsPage() {
             </SettingItem>
           </SettingGroup>
           
-          {/* 系统设置 */}
           <SettingGroup icon={Sliders} title="系统设置">
             <SettingItem 
               title="缓存时间" 
@@ -520,7 +741,6 @@ export default function SettingsPage() {
             </SettingItem>
           </SettingGroup>
           
-          {/* GitHub代码同步 */}
           <SettingGroup icon={Github} title="GitHub代码同步">
             <SettingItem 
               title="GitHub仓库" 
@@ -579,6 +799,262 @@ export default function SettingsPage() {
               <p className="text-xs text-muted-foreground mt-2">
                 注意：此操作只更新网站功能代码，不会改变数据库内容。请确保代码兼容性。
               </p>
+            </SettingItem>
+          </SettingGroup>
+          
+          <SettingGroup icon={Zap} title="性能优化">
+            <SettingItem 
+              title="图片优化" 
+              description="自动优化上传图片的尺寸和压缩，提高页面加载速度"
+            >
+              <ToggleSwitch 
+                checked={formData.enableImageOptimization} 
+                onChange={(value) => handleToggleChange('enableImageOptimization', value)}
+              />
+            </SettingItem>
+            
+            <SettingItem 
+              title="页面缓存" 
+              description="启用页面级缓存以提高重复访问的加载速度"
+            >
+              <ToggleSwitch 
+                checked={formData.enablePageCaching} 
+                onChange={(value) => handleToggleChange('enablePageCaching', value)}
+              />
+            </SettingItem>
+
+            <SettingItem 
+              title="压缩资源" 
+              description="压缩CSS、JS等资源以减少加载时间"
+            >
+              <ToggleSwitch 
+                checked={formData.minifyAssets} 
+                onChange={(value) => handleToggleChange('minifyAssets', value)}
+              />
+            </SettingItem>
+            
+            <SettingItem 
+              title="压缩级别" 
+              description="设置网站资源压缩级别（较高压缩比会增加服务器负载）"
+            >
+              <select
+                name="compressionLevel"
+                value={formData.compressionLevel}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-border rounded-md bg-background"
+                disabled={!formData.minifyAssets}
+              >
+                <option value="low">低 (更快处理)</option>
+                <option value="medium">中 (平衡)</option>
+                <option value="high">高 (更小体积)</option>
+              </select>
+            </SettingItem>
+          </SettingGroup>
+          
+          <SettingGroup icon={Shield} title="安全设置">
+            <SettingItem 
+              title="验证码保护" 
+              description="在登录和注册页面添加reCAPTCHA验证码防止机器人攻击"
+            >
+              <ToggleSwitch 
+                checked={formData.enableCaptcha} 
+                onChange={(value) => handleToggleChange('enableCaptcha', value)}
+              />
+            </SettingItem>
+            
+            {formData.enableCaptcha && (
+              <>
+                <SettingItem 
+                  title="reCAPTCHA站点密钥" 
+                  description="Google reCAPTCHA站点密钥"
+                >
+                  <input
+                    type="text"
+                    name="reCaptchaSiteKey"
+                    value={formData.reCaptchaSiteKey}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-border rounded-md bg-background"
+                    placeholder="6LcXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+                  />
+                </SettingItem>
+                
+                <SettingItem 
+                  title="reCAPTCHA密钥" 
+                  description="Google reCAPTCHA私钥（保密）"
+                >
+                  <input
+                    type="password"
+                    name="reCaptchaSecretKey"
+                    value={formData.reCaptchaSecretKey}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-border rounded-md bg-background"
+                    placeholder="6LcXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+                  />
+                </SettingItem>
+              </>
+            )}
+            
+            <SettingItem 
+              title="最大登录尝试次数" 
+              description="限制用户登录失败次数，超过后将暂时锁定账号"
+            >
+              <input
+                type="number"
+                name="maxLoginAttempts"
+                value={formData.maxLoginAttempts}
+                onChange={handleInputChange}
+                className="w-32 px-3 py-2 border border-border rounded-md bg-background"
+                min="1"
+                max="20"
+              />
+            </SettingItem>
+            
+            <SettingItem 
+              title="密码最小长度" 
+              description="设置用户密码的最小长度要求"
+            >
+              <input
+                type="number"
+                name="passwordMinLength"
+                value={formData.passwordMinLength}
+                onChange={handleInputChange}
+                className="w-32 px-3 py-2 border border-border rounded-md bg-background"
+                min="6"
+                max="30"
+              />
+            </SettingItem>
+            
+            <SettingItem 
+              title="双因素认证" 
+              description="允许用户启用双因素认证提高账号安全性"
+            >
+              <ToggleSwitch 
+                checked={formData.enableTwoFactor} 
+                onChange={(value) => handleToggleChange('enableTwoFactor', value)}
+              />
+            </SettingItem>
+            
+            <SettingItem 
+              title="内容安全策略" 
+              description="启用CSP头以防止XSS攻击和其他代码注入"
+            >
+              <ToggleSwitch 
+                checked={formData.enableContentSecurity} 
+                onChange={(value) => handleToggleChange('enableContentSecurity', value)}
+              />
+            </SettingItem>
+          </SettingGroup>
+          
+          <SettingGroup icon={ServerCrash} title="API设置">
+            <SettingItem 
+              title="启用API访问" 
+              description="允许第三方应用通过API接口访问网站数据"
+            >
+              <ToggleSwitch 
+                checked={formData.enableApiAccess} 
+                onChange={(value) => handleToggleChange('enableApiAccess', value)}
+              />
+            </SettingItem>
+            
+            <SettingItem 
+              title="API请求限制" 
+              description="每分钟每个IP允许的最大API请求数（防止滥用）"
+            >
+              <input
+                type="number"
+                name="apiRateLimit"
+                value={formData.apiRateLimit}
+                onChange={handleInputChange}
+                className="w-32 px-3 py-2 border border-border rounded-md bg-background"
+                min="1"
+                max="1000"
+                disabled={!formData.enableApiAccess}
+              />
+            </SettingItem>
+            
+            <SettingItem 
+              title="跨域资源共享" 
+              description="允许其他网站的前端应用访问API"
+            >
+              <ToggleSwitch 
+                checked={formData.allowCors} 
+                onChange={(value) => handleToggleChange('allowCors', value)}
+                disabled={!formData.enableApiAccess}
+              />
+            </SettingItem>
+            
+            <SettingItem 
+              title="允许的域名" 
+              description="允许访问API的域名列表，用逗号分隔（留空表示允许所有）"
+            >
+              <input
+                type="text"
+                name="allowedOrigins"
+                value={formData.allowedOrigins}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-border rounded-md bg-background"
+                placeholder="example.com,api.example.org"
+                disabled={!formData.enableApiAccess || !formData.allowCors}
+              />
+            </SettingItem>
+          </SettingGroup>
+          
+          <SettingGroup icon={Database} title="数据库备份">
+            <SettingItem 
+              title="自动备份" 
+              description="系统将按计划自动备份数据库"
+            >
+              <ToggleSwitch 
+                checked={formData.autoBackupEnabled} 
+                onChange={(value) => handleToggleChange('autoBackupEnabled', value)}
+              />
+            </SettingItem>
+            
+            <SettingItem 
+              title="备份频率" 
+              description="设置数据库自动备份的频率"
+            >
+              <select
+                name="backupFrequency"
+                value={formData.backupFrequency}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-border rounded-md bg-background"
+                disabled={!formData.autoBackupEnabled}
+              >
+                <option value="daily">每天</option>
+                <option value="weekly">每周</option>
+                <option value="monthly">每月</option>
+              </select>
+            </SettingItem>
+            
+            <SettingItem 
+              title="备份时间" 
+              description="设置执行自动备份的具体时间（24小时制）"
+            >
+              <input
+                type="time"
+                name="backupTime"
+                value={formData.backupTime}
+                onChange={handleInputChange}
+                className="w-32 px-3 py-2 border border-border rounded-md bg-background"
+                disabled={!formData.autoBackupEnabled}
+              />
+            </SettingItem>
+            
+            <SettingItem 
+              title="保留时间" 
+              description="自动备份保留的天数，超过后将自动删除"
+            >
+              <input
+                type="number"
+                name="backupRetentionDays"
+                value={formData.backupRetentionDays}
+                onChange={handleInputChange}
+                className="w-32 px-3 py-2 border border-border rounded-md bg-background"
+                min="1"
+                max="365"
+                disabled={!formData.autoBackupEnabled}
+              />
             </SettingItem>
           </SettingGroup>
         </form>
